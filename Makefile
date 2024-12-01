@@ -1,3 +1,6 @@
+dev:
+	go run main.go
+
 build:
 	gcloud builds submit --tag gcr.io/beatbrain-dev/melodex
 
