@@ -7,6 +7,8 @@ import (
 
 	"github.com/gorilla/mux"
 	"go.uber.org/fx"
+
+	"melodex/handlers"
 )
 
 func main() {
@@ -18,15 +20,7 @@ func main() {
 
 func NewRouter() *mux.Router {
 	r := mux.NewRouter()
-	r.HandleFunc("/scrape/{scrapeId}", func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		scrapeID := vars["scrapeId"]
-
-		if scrapeID != "billboard-hot-100" {
-			http.Error(w, "Invalid scrape ID", http.StatusBadRequest)
-			return
-		}
-	}).Methods("POST")
+	r.HandleFunc("/scrape/{scrapeId}", handlers.HandleScrape).Methods("POST")
 
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("API is running"))

@@ -8,3 +8,7 @@ deploy:
 	gcloud run deploy melodex \
 	--image gcr.io/beatbrain-dev/melodex \
 	--platform managed
+
+ship:
+	make build
+	make deploy
