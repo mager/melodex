@@ -5,20 +5,27 @@ import (
 	"log"
 	"net/http"
 
+	"cloud.google.com/go/firestore"
+
 	"github.com/gorilla/mux"
 	"go.uber.org/fx"
 
+	fs "melodex/firestore"
 	"melodex/handlers"
 )
 
 func main() {
 	fx.New(
-		fx.Provide(NewRouter),
+		fx.Provide(
+			NewRouter,
+			fs.Options,
+		),
 		fx.Invoke(StartServer),
 	).Run()
 }
 
-func NewRouter() *mux.Router {
+func NewRouter(db *firestore.Client,
+) *mux.Router {
 	r := mux.NewRouter()
 	r.HandleFunc("/scrape/{scrapeId}", handlers.HandleScrape).Methods("POST")
 
