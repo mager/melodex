@@ -30,7 +30,7 @@ func ScrapeBillboardHot100(w http.ResponseWriter) ([]Song, error) {
 			rank = 0
 		}
 		title := strings.TrimSpace(e.ChildText("li.o-chart-results-list__item h3.c-title"))
-		artist := e.ChildText("li.o-chart-results-list__item span.c-label:not(.a-font-primary-bold-l)")
+		artist := e.ChildText("li.o-chart-results-list__item span.c-label:not(.a-font-primary-bold-l):not(.u-width-45):not(.u-width-40)")
 		artist = strings.Split(artist, "\n")[0]
 		artist = strings.TrimSpace(artist)
 
