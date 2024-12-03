@@ -10,8 +10,10 @@ import (
 	"github.com/gorilla/mux"
 	"go.uber.org/fx"
 
+	cfg "melodex/config"
 	fs "melodex/firestore"
 	"melodex/handlers"
+	spot "melodex/spotify"
 )
 
 func main() {
@@ -19,15 +21,21 @@ func main() {
 		fx.Provide(
 			NewRouter,
 			fs.Options,
+			cfg.Options,
+			spot.Options,
 		),
 		fx.Invoke(StartServer),
 	).Run()
 }
 
-func NewRouter(db *firestore.Client,
+func NewRouter(
+	db *firestore.Client,
+	sp *spot.SpotifyClient,
 ) *mux.Router {
 	r := mux.NewRouter()
-	r.HandleFunc("/scrape/{scrapeId}", handlers.HandleScrape).Methods("POST")
+
+	scrapeHandler := handlers.NewScrapeHandler(db, sp)
+	r.HandleFunc("/scrape/{scrapeId}", scrapeHandler.Handle).Methods("POST")
 
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("API is running"))

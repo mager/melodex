@@ -1,7 +1,6 @@
 package scrapers
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 	"strconv"
@@ -54,17 +53,6 @@ func ScrapeBillboardHot100(w http.ResponseWriter) ([]Song, error) {
 		return nil, err
 	}
 
-	//Marshal the songs to JSON and write to response.
-	songJSON, err := json.Marshal(songs)
-	if err != nil {
-		log.Printf("Error marshaling JSON: %v", err)
-		http.Error(w, "Error processing Billboard data", http.StatusInternalServerError)
-		return nil, err
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write(songJSON)
 	return songs, nil
 }
 

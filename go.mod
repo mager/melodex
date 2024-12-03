@@ -8,7 +8,10 @@ require (
 	cloud.google.com/go/firestore v1.17.0
 	github.com/gocolly/colly v1.2.0
 	github.com/gorilla/mux v1.8.1
+	github.com/kelseyhightower/envconfig v1.4.0
+	github.com/zmb3/spotify/v2 v2.4.3
 	go.uber.org/fx v1.23.0
+	golang.org/x/oauth2 v0.22.0
 )
 
 require (
@@ -42,10 +45,9 @@ require (
 	go.opentelemetry.io/otel/trace v1.29.0 // indirect
 	go.uber.org/dig v1.18.0 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
-	go.uber.org/zap v1.26.0 // indirect
+	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/crypto v0.29.0 // indirect
 	golang.org/x/net v0.31.0 // indirect
-	golang.org/x/oauth2 v0.22.0 // indirect
 	golang.org/x/sync v0.9.0 // indirect
 	golang.org/x/sys v0.27.0 // indirect
 	golang.org/x/text v0.20.0 // indirect

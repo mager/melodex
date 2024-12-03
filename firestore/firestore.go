@@ -7,9 +7,15 @@ import (
 	"cloud.google.com/go/firestore"
 )
 
+type Track struct {
+	Artist    string `json:"artist" firestore:"artist"`
+	Title     string `json:"title" firestore:"title"`
+	SpotifyID string `json:"spotifyID" firestore:"spotifyID"`
+}
+
 // ProvideDB provides a firestore client
 func ProvideDB() *firestore.Client {
-	projectID := "floorreport"
+	projectID := "beatbrain-dev"
 
 	client, err := firestore.NewClient(context.TODO(), projectID)
 	if err != nil {
