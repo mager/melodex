@@ -8,9 +8,11 @@ import (
 )
 
 type Track struct {
+	Rank      int    `json:"rank" firestore:"rank"`
 	Artist    string `json:"artist" firestore:"artist"`
 	Title     string `json:"title" firestore:"title"`
 	SpotifyID string `json:"spotifyID" firestore:"spotifyID"`
+	Thumb     string `json:"thumb" firestore:"thumb"`
 }
 
 // ProvideDB provides a firestore client

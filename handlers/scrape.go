@@ -49,14 +49,18 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tracks := make([]fs.Track, 20)
+	tracks := make([]fs.Track, 0, 100)
+	// Add the songs to the tracks
+	for _, song := range songs {
+		tracks = append(tracks, fs.Track{
+			Rank:   song.Rank,
+			Artist: song.Artist,
+			Title:  song.Title,
+		})
+	}
 
-	for i, song := range songs {
-		if i >= 20 {
-			break
-		}
-
-		q := buildSpotifyQuery(song.Artist, song.Title)
+	for i, track := range tracks {
+		q := buildSpotifyQuery(track.Artist, track.Title)
 		results, err := h.sp.Client.Search(ctx, q, spotify.SearchTypeTrack)
 		if err != nil {
 			http.Error(w, "search error: "+err.Error(), http.StatusInternalServerError)
@@ -65,7 +69,7 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 
 		if results.Tracks == nil || len(results.Tracks.Tracks) == 0 {
 			log.Printf("No tracks found for query: %s", q)
-			q = song.Artist + " " + song.Title
+			q = track.Artist + " " + track.Title
 			results, err = h.sp.Client.Search(ctx, q, spotify.SearchTypeTrack)
 			if err != nil {
 				http.Error(w, "search error: "+err.Error(), http.StatusInternalServerError)
@@ -75,17 +79,30 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 
 		if results.Tracks != nil && len(results.Tracks.Tracks) > 0 {
 			track := results.Tracks.Tracks[0]
-			tracks[i] = fs.Track{
-				SpotifyID: track.ID.String(),
-				Title:     track.Name,
-				Artist:    track.Artists[0].Name,
+			tracks[i].SpotifyID = track.ID.String()
+
+			for _, image := range track.Album.Images {
+				if image.Height == 64 && image.Width == 64 {
+					tracks[i].Thumb = strings.TrimPrefix(image.URL, "https://i.scdn.co/image/")
+					break
+				}
 			}
+
 			log.Printf("Added track: %s by %s", track.Name, track.Artists[0].Name)
 		} else {
 			log.Printf("No tracks found for raw query: %s", q)
 		}
 
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(250 * time.Millisecond)
+	}
+
+	today := time.Now().Format("2006-01-02")
+	_, err = h.db.Collection("billboard").Doc(today).Set(ctx, map[string]interface{}{
+		"tracks": tracks,
+	})
+	if err != nil {
+		http.Error(w, "Failed to update Firestore: "+err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
