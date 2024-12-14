@@ -38,14 +38,33 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	scrapeID := vars["scrapeId"]
 
+	log.Printf("Received scrape ID: %s", scrapeID)
+
 	if scrapeID != "billboard-hot-100" {
 		http.Error(w, "Invalid scrape ID", http.StatusBadRequest)
+		log.Printf("Invalid scrape ID: %s", scrapeID)
 		return
 	}
 
+	today := time.Now().Format("2006-01-02")
+	log.Printf("Checking if document for today (%s) exists", today)
+
+	// Check if the document for today already exists
+	doc, err := h.db.Collection("billboard").Doc(today).Get(ctx)
+	if err == nil && doc.Exists() {
+		// Document exists, exit early
+		http.Error(w, "Data for today already exists", http.StatusConflict)
+		log.Printf("Data for today (%s) already exists", today)
+		return
+	} else if err != nil {
+		log.Printf("Error checking document existence: %v", err)
+	}
+
+	log.Printf("Scraping Billboard Hot 100")
 	songs, err := scrapers.ScrapeBillboardHot100(w)
 	if err != nil {
 		http.Error(w, "Failed to scrape Billboard Hot 100: "+err.Error(), http.StatusInternalServerError)
+		log.Printf("Scraping failed: %v", err)
 		return
 	}
 
@@ -82,7 +101,7 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 			tracks[i].SpotifyID = track.ID.String()
 
 			for _, image := range track.Album.Images {
-				if image.Height == 64 && image.Width == 64 {
+				if image.Height == 300 && image.Width == 300 {
 					tracks[i].Thumb = strings.TrimPrefix(image.URL, "https://i.scdn.co/image/")
 					break
 				}
@@ -96,15 +115,16 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(250 * time.Millisecond)
 	}
 
-	today := time.Now().Format("2006-01-02")
 	_, err = h.db.Collection("billboard").Doc(today).Set(ctx, map[string]interface{}{
 		"tracks": tracks,
 	})
 	if err != nil {
 		http.Error(w, "Failed to update Firestore: "+err.Error(), http.StatusInternalServerError)
+		log.Printf("Failed to update Firestore: %v", err)
 		return
 	}
 
+	log.Printf("Successfully created document for today (%s)", today)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(tracks)
 }
