@@ -27,3 +27,9 @@ func ProvideDB() *firestore.Client {
 }
 
 var Options = ProvideDB
+
+type Song struct {
+	Rank   int    `json:"rank"`
+	Title  string `json:"title"`
+	Artist string `json:"artist"`
+}

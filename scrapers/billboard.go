@@ -2,6 +2,7 @@ package scrapers
 
 import (
 	"log"
+	"melodex/firestore"
 	"net/http"
 	"strconv"
 	"strings"
@@ -9,16 +10,10 @@ import (
 	"github.com/gocolly/colly"
 )
 
-type Song struct {
-	Rank   int    `json:"rank"`
-	Title  string `json:"title"`
-	Artist string `json:"artist"`
-}
-
-// ScrapeBillboardHot100 scrapes the Billboard Hot 100 chart.  Improved error handling and more robust selectors.
-func ScrapeBillboardHot100(w http.ResponseWriter) ([]Song, error) {
+// ScrapeBillboardHot100 scrapes the Billboard Hot 100 chart.
+func ScrapeBillboardHot100(w http.ResponseWriter) ([]firestore.Song, error) {
 	c := colly.NewCollector()
-	var songs []Song
+	var songs []firestore.Song
 
 	c.OnHTML("ul.o-chart-results-list-row", func(e *colly.HTMLElement) {
 		rankStr := e.ChildText("li.o-chart-results-list__item span.c-label.a-font-primary-bold-l")
@@ -33,7 +28,7 @@ func ScrapeBillboardHot100(w http.ResponseWriter) ([]Song, error) {
 		artist = strings.Split(artist, "\n")[0]
 		artist = strings.TrimSpace(artist)
 
-		songs = append(songs, Song{Rank: rank, Title: title, Artist: artist})
+		songs = append(songs, firestore.Song{Rank: rank, Title: title, Artist: artist})
 	})
 
 	c.OnRequest(func(r *colly.Request) {
@@ -56,4 +51,4 @@ func ScrapeBillboardHot100(w http.ResponseWriter) ([]Song, error) {
 	return songs, nil
 }
 
-type ScrapeBillboardHot100Func func(http.ResponseWriter) ([]Song, error)
+type ScrapeBillboardHot100Func func(http.ResponseWriter) ([]firestore.Song, error)
