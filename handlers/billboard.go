@@ -96,7 +96,6 @@ func (h *ScrapeHandler) HandleBillboard(w http.ResponseWriter, r *http.Request) 
 	}
 
 	log.Printf("Successfully created document for today (%s)", today)
-	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(tracks)
 }
 

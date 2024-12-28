@@ -46,6 +46,10 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		break
 	case "hype-machine":
 		h.HandleHypeMachine(w, r)
-
+		break
+	default:
+		break
 	}
+
+	return
 }

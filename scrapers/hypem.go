@@ -35,7 +35,8 @@ func ScrapeHypeMachine(w http.ResponseWriter) ([]fs.Track, error) {
 			start := strings.Index(thumb, "url(") + len("url(")
 			end := strings.Index(thumb[start:], ")")
 			if start > -1 && end > -1 {
-				thumbURL = thumb[start : start+end]
+				fullURL := thumb[start : start+end]
+				thumbURL = strings.TrimPrefix(fullURL, "https://static.hypem.com/items_images/")
 			}
 		}
 
