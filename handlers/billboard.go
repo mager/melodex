@@ -18,19 +18,38 @@ func (h *ScrapeHandler) HandleBillboard(w http.ResponseWriter, r *http.Request) 
 	ctx := context.Background()
 
 	today := time.Now().Format("2006-01-02")
+	yesterday := time.Now().Add(-24 * time.Hour).Format("2006-01-02")
 	log.Printf("Checking if document for today (%s) exists", today)
 
-	// Check if the document for today already exists
+	// Check if today's document exists
 	doc, err := h.db.Collection("billboard").Doc(today).Get(ctx)
 	if err == nil && doc.Exists() {
-		// Document exists, exit early
 		http.Error(w, "Data for today already exists", http.StatusConflict)
 		log.Printf("Data for today (%s) already exists", today)
 		return
 	} else if err != nil {
-		log.Printf("Error checking document existence: %v", err)
+		log.Printf("Error checking today's document existence: %v", err)
 	}
 
+	// Fetch yesterday's data into a map
+	yesterdayData := make(map[string]fs.Track)
+	doc, err = h.db.Collection("billboard").Doc(yesterday).Get(ctx)
+	if err == nil && doc.Exists() {
+		var yesterdayTracks struct {
+			Tracks []fs.Track `json:"tracks"`
+		}
+		if err := doc.DataTo(&yesterdayTracks); err == nil {
+			for _, track := range yesterdayTracks.Tracks {
+				key := track.Artist + " - " + track.Title
+				yesterdayData[key] = track
+			}
+			log.Printf("Loaded %d tracks from yesterday's data", len(yesterdayData))
+		}
+	} else if err != nil {
+		log.Printf("No data found for yesterday (%s): %v", yesterday, err)
+	}
+
+	// Scrape today's Billboard data
 	log.Printf("Scraping Billboard Hot 100")
 	songs, err := scrapers.ScrapeBillboardHot100(w)
 	if err != nil {
@@ -39,53 +58,47 @@ func (h *ScrapeHandler) HandleBillboard(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	tracks := make([]fs.Track, 0, 100)
-	// Add the songs to the tracks
+	tracks := make([]fs.Track, 0, len(songs))
 	for _, song := range songs {
-		tracks = append(tracks, fs.Track{
-			Rank:   song.Rank,
-			Artist: song.Artist,
-			Title:  song.Title,
-		})
-	}
+		key := song.Artist + " - " + song.Title
+		if existingTrack, found := yesterdayData[key]; found {
+			// Reuse yesterday's track metadata
+			tracks = append(tracks, existingTrack)
+			log.Printf("Reused metadata for track: %s by %s", song.Title, song.Artist)
+			continue
+		}
 
-	for i, track := range tracks {
-		q := buildSpotifyQuery(track.Artist, track.Title)
+		// Fetch metadata from Spotify
+		q := buildSpotifyQuery(song.Artist, song.Title)
 		results, err := h.sp.Client.Search(ctx, q, spotify.SearchTypeTrack)
-		if err != nil {
-			http.Error(w, "search error: "+err.Error(), http.StatusInternalServerError)
-			return
+		if err != nil || results.Tracks == nil || len(results.Tracks.Tracks) == 0 {
+			log.Printf("Spotify search failed for query: %s", q)
+			tracks = append(tracks, fs.Track{Rank: song.Rank, Artist: song.Artist, Title: song.Title})
+			continue
 		}
 
-		if results.Tracks == nil || len(results.Tracks.Tracks) == 0 {
-			log.Printf("No tracks found for query: %s", q)
-			q = track.Artist + " " + track.Title
-			results, err = h.sp.Client.Search(ctx, q, spotify.SearchTypeTrack)
-			if err != nil {
-				http.Error(w, "search error: "+err.Error(), http.StatusInternalServerError)
-				return
+		track := results.Tracks.Tracks[0]
+		newTrack := fs.Track{
+			Rank:      song.Rank,
+			Artist:    song.Artist,
+			Title:     song.Title,
+			SpotifyID: track.ID.String(),
+		}
+
+		// Find and save thumbnail
+		for _, image := range track.Album.Images {
+			if image.Height == 300 && image.Width == 300 {
+				newTrack.Thumb = strings.TrimPrefix(image.URL, "https://i.scdn.co/image/")
+				break
 			}
 		}
 
-		if results.Tracks != nil && len(results.Tracks.Tracks) > 0 {
-			track := results.Tracks.Tracks[0]
-			tracks[i].SpotifyID = track.ID.String()
-
-			for _, image := range track.Album.Images {
-				if image.Height == 300 && image.Width == 300 {
-					tracks[i].Thumb = strings.TrimPrefix(image.URL, "https://i.scdn.co/image/")
-					break
-				}
-			}
-
-			log.Printf("Added track: %s by %s", track.Name, track.Artists[0].Name)
-		} else {
-			log.Printf("No tracks found for raw query: %s", q)
-		}
-
-		time.Sleep(250 * time.Millisecond)
+		tracks = append(tracks, newTrack)
+		log.Printf("Added new track: %s by %s", track.Name, track.Artists[0].Name)
+		time.Sleep(250 * time.Millisecond) // Rate limit
 	}
 
+	// Save today's data to Firestore
 	_, err = h.db.Collection("billboard").Doc(today).Set(ctx, map[string]interface{}{
 		"tracks": tracks,
 	})

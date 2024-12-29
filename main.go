@@ -36,6 +36,7 @@ func NewRouter(
 
 	scrapeHandler := handlers.NewScrapeHandler(db, sp)
 	r.HandleFunc("/scrape/{scrapeId}", scrapeHandler.Handle).Methods("POST")
+	r.HandleFunc("/scrape", scrapeHandler.Handle).Methods("POST")
 
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("API is running"))

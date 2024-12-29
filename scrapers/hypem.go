@@ -41,7 +41,7 @@ func ScrapeHypeMachine(w http.ResponseWriter) ([]fs.Track, error) {
 		}
 
 		// Only add if we have all required fields
-		if rankStr != "" && title != "" && artist != "" {
+		if rankStr != "" && title != "" && artist != "" && spotifyID != "" {
 			rank, err := strconv.Atoi(rankStr)
 			if err != nil {
 				log.Printf("Error converting rank to integer: %v", err)
