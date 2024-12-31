@@ -71,7 +71,7 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate target
-	if !slices.Contains([]string{"billboard-hot-100", "hype-machine"}, target) {
+	if !slices.Contains([]string{"billboard-hot-100", "hype-machine", "hot-new-hip-hop"}, target) {
 		http.Error(w, "Invalid target", http.StatusBadRequest)
 		log.Printf("Invalid target: %s", target)
 		return
@@ -83,6 +83,8 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		h.HandleBillboard(w, r)
 	case "hype-machine":
 		h.HandleHypeMachine(w, r)
+	case "hot-new-hip-hop":
+		h.HandleHotNewHipHop(w, r)
 	default:
 		log.Printf("Unhandled target: %s", target)
 	}
