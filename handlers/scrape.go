@@ -46,7 +46,7 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	// Handle default case where no target is provided
 	if target == "" {
-		errChan := make(chan error, 2)
+		errChan := make(chan error, 3)
 
 		go func() {
 			h.HandleBillboard(w, r)
@@ -58,8 +58,13 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 			errChan <- nil
 		}()
 
+		go func() {
+			h.HandleHotNewHipHop(w, r)
+			errChan <- nil
+		}()
+
 		// Collect results from both goroutines
-		for i := 0; i < 2; i++ {
+		for i := 0; i < 3; i++ {
 			if err := <-errChan; err != nil {
 				log.Printf("Error in scraping: %v", err)
 			}

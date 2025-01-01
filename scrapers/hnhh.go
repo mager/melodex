@@ -41,7 +41,6 @@ func ScrapeHotNewHipHop(w http.ResponseWriter) ([]fs.Track, error) {
 	c.OnError(func(r *colly.Response, err error) {
 		log.Printf("Request URL: %s \nError: %v", r.Request.URL, err)
 		http.Error(w, "Error scraping HNHH", http.StatusInternalServerError)
-		return
 	})
 
 	err := c.Visit("https://www.hotnewhiphop.com/top100")

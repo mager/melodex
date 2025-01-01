@@ -38,7 +38,6 @@ func ScrapeBillboardHot100(w http.ResponseWriter) ([]firestore.Song, error) {
 	c.OnError(func(r *colly.Response, err error) {
 		log.Printf("Request URL: %s \nError: %v", r.Request.URL, err)
 		http.Error(w, "Error scraping Billboard chart", http.StatusInternalServerError)
-		return
 	})
 
 	err := c.Visit("https://www.billboard.com/charts/hot-100/")
