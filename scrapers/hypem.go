@@ -15,44 +15,47 @@ func ScrapeHypeMachine(w http.ResponseWriter) ([]fs.Track, error) {
 	c := colly.NewCollector()
 	var songs []fs.Track
 
-	c.OnHTML("#track-list .section-player", func(e *colly.HTMLElement) {
-		rankStr := e.ChildText("span.rank")
+	c.OnHTML("#track-list .section-track", func(e *colly.HTMLElement) {
+		// Rank is not directly available, so we'll infer it from the order on the page
+		rank := len(songs) + 1
+
 		title := strings.TrimSpace(e.ChildText("h3.track_name a.track span.base-title"))
 		artist := strings.TrimSpace(e.ChildText("h3.track_name a.artist"))
-		spotifyLink := e.ChildAttr(".meta .download a[href^='/go/spotify_track/']", "href")
-		thumb := e.ChildAttr("a.thumb", "style")
+
+		// The Spotify link is in a nested structure.
+		spotifyLink := e.ChildAttr(".meta .download a[href*='spotify_track']", "href")
+
+		// Get the thumbnail URL.
+		thumbURL := e.ChildAttr("a.thumb", "style")
 
 		// Extract the Spotify ID from the link
 		spotifyID := ""
 		if spotifyLink != "" {
 			parts := strings.Split(spotifyLink, "/")
-			spotifyID = parts[len(parts)-1]
+			if len(parts) > 0 {
+				spotifyID = parts[len(parts)-1] // Get the last part of the URL
+			}
 		}
 
 		// Extract the thumbnail URL from the inline style
-		thumbURL := ""
-		if thumb != "" {
-			start := strings.Index(thumb, "url(") + len("url(")
-			end := strings.Index(thumb[start:], ")")
+		thumb := ""
+		if thumbURL != "" {
+			start := strings.Index(thumbURL, "url(") + len("url(")
+			end := strings.Index(thumbURL[start:], ")")
 			if start > -1 && end > -1 {
-				fullURL := thumb[start : start+end]
-				thumbURL = strings.TrimPrefix(fullURL, "https://static.hypem.com/items_images/")
+				fullURL := thumbURL[start : start+end]
+				thumb = strings.TrimPrefix(fullURL, "https://static.hypem.com/items_images/")
 			}
 		}
 
-		// Only add if we have all required fields
-		if rankStr != "" && title != "" && artist != "" && spotifyID != "" {
-			rank, err := strconv.Atoi(rankStr)
-			if err != nil {
-				log.Printf("Error converting rank to integer: %v", err)
-				rank = 0 // Default rank in case of an error
-			}
+		// Only add if we have all required fields (except rank)
+		if title != "" && artist != "" && spotifyID != "" {
 			songs = append(songs, fs.Track{
 				Rank:      rank,
 				Title:     title,
 				Artist:    artist,
 				SpotifyID: spotifyID,
-				Thumb:     thumbURL,
+				Thumb:     thumb,
 			})
 		}
 	})
