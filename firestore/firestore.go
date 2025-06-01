@@ -8,11 +8,13 @@ import (
 )
 
 type Track struct {
-	Rank      int    `json:"rank" firestore:"rank"`
-	Artist    string `json:"artist" firestore:"artist"`
-	Title     string `json:"title" firestore:"title"`
+	Rank   int    `json:"rank" firestore:"rank"`
+	Artist string `json:"artist" firestore:"artist"`
+	Title  string `json:"title" firestore:"title"`
+	ISRC   string `json:"isrc" firestore:"isrc"`
+	Thumb  string `json:"thumb" firestore:"thumb"`
+	// TODO: Deprecate this field
 	SpotifyID string `json:"spotifyID" firestore:"spotifyID"`
-	Thumb     string `json:"thumb" firestore:"thumb"`
 }
 
 // ProvideDB provides a firestore client
