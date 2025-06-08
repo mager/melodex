@@ -10,6 +10,7 @@ require (
 	github.com/gocolly/colly v1.2.0
 	github.com/gorilla/mux v1.8.1
 	github.com/kelseyhightower/envconfig v1.4.0
+	github.com/mager/musicbrainz-go v0.0.14
 	github.com/zmb3/spotify/v2 v2.4.3
 	go.uber.org/fx v1.23.0
 	golang.org/x/oauth2 v0.22.0

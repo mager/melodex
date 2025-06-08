@@ -69,7 +69,11 @@ func (h *ScrapeHandler) HandleBillboard(w http.ResponseWriter, r *http.Request) 
 	}
 
 	tracks := make([]fs.Track, 0, len(songs))
-	for _, song := range songs {
+	for i, song := range songs {
+		if i >= 1 {
+			break
+		}
+
 		key := song.Artist + " - " + song.Title
 		if existingTrack, found := yesterdayData[key]; found {
 			// Reuse yesterday's track metadata
@@ -97,8 +101,8 @@ func (h *ScrapeHandler) HandleBillboard(w http.ResponseWriter, r *http.Request) 
 			Rank:   song.Rank,
 			Artist: song.Artist,
 			Title:  song.Title,
-			ISRC:   isrc,
 			// TODO: Deprecate this field
+			ISRC:      isrc,
 			SpotifyID: track.ID.String(),
 		}
 

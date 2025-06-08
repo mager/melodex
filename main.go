@@ -12,7 +12,8 @@ import (
 
 	cfg "melodex/config"
 	fs "melodex/firestore"
-	"melodex/handlers"
+	h "melodex/handlers"
+	mb "melodex/musicbrainz"
 	spot "melodex/spotify"
 )
 
@@ -23,6 +24,7 @@ func main() {
 			fs.Options,
 			cfg.Options,
 			spot.Options,
+			mb.Options,
 		),
 		fx.Invoke(StartServer),
 	).Run()
@@ -31,13 +33,14 @@ func main() {
 func NewRouter(
 	db *firestore.Client,
 	sp *spot.SpotifyClient,
+	mb *mb.MusicbrainzClient,
 ) *mux.Router {
 	r := mux.NewRouter()
 
-	scrapeHandler := handlers.NewScrapeHandler(db, sp)
+	scrapeHandler := h.NewScrapeHandler(db, sp, mb)
 	r.HandleFunc("/scrape", scrapeHandler.Handle).Methods("POST")
 
-	whosampledHandler := handlers.NewWhoSampledHandler(db, sp)
+	whosampledHandler := h.NewWhoSampledHandler(db, sp)
 	r.HandleFunc("/whosampled", whosampledHandler.Handle).Methods("POST")
 
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

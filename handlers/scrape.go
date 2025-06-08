@@ -8,21 +8,25 @@ import (
 
 	"cloud.google.com/go/firestore"
 
+	mb "melodex/musicbrainz"
 	spot "melodex/spotify"
 )
 
 type ScrapeHandler struct {
 	db *firestore.Client
 	sp *spot.SpotifyClient
+	mb *mb.MusicbrainzClient
 }
 
 func NewScrapeHandler(
 	db *firestore.Client,
 	sp *spot.SpotifyClient,
+	mb *mb.MusicbrainzClient,
 ) *ScrapeHandler {
 	return &ScrapeHandler{
 		db: db,
 		sp: sp,
+		mb: mb,
 	}
 }
 
@@ -76,7 +80,7 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate target
-	if !slices.Contains([]string{"billboard-hot-100", "hype-machine", "hot-new-hip-hop"}, target) {
+	if !slices.Contains([]string{"testing", "billboard-hot-100", "hype-machine", "hot-new-hip-hop"}, target) {
 		http.Error(w, "Invalid target", http.StatusBadRequest)
 		log.Printf("Invalid target: %s", target)
 		return
@@ -84,6 +88,8 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	// Scrape based on target
 	switch target {
+	case "testing":
+		h.HandleTesting(w, r)
 	case "billboard-hot-100":
 		h.HandleBillboard(w, r)
 	case "hype-machine":

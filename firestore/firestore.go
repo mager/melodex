@@ -8,13 +8,16 @@ import (
 )
 
 type Track struct {
-	Rank   int    `json:"rank" firestore:"rank"`
+	// MBID is the MusicBrainz recording ID
+	MBID   string `json:"mbid" firestore:"mbid"`
 	Artist string `json:"artist" firestore:"artist"`
 	Title  string `json:"title" firestore:"title"`
-	ISRC   string `json:"isrc" firestore:"isrc"`
-	Thumb  string `json:"thumb" firestore:"thumb"`
-	// TODO: Deprecate this field
-	SpotifyID string `json:"spotifyID" firestore:"spotifyID"`
+	Rank   int    `json:"rank" firestore:"rank"`
+
+	// TODO: Deprecate these field
+	Thumb     string `json:"thumb,omitempty" firestore:"thumb,omitempty"`
+	ISRC      string `json:"isrc,omitempty" firestore:"isrc,omitempty"`
+	SpotifyID string `json:"spotifyID,omitempty" firestore:"spotifyID,omitempty"`
 }
 
 // ProvideDB provides a firestore client
