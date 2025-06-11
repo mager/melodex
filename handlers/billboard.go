@@ -69,11 +69,7 @@ func (h *ScrapeHandler) HandleBillboard(w http.ResponseWriter, r *http.Request) 
 	}
 
 	tracks := make([]fs.Track, 0, len(songs))
-	for i, song := range songs {
-		if i >= 1 {
-			break
-		}
-
+	for _, song := range songs {
 		key := song.Artist + " - " + song.Title
 		if existingTrack, found := yesterdayData[key]; found {
 			// Reuse yesterday's track metadata
@@ -97,13 +93,21 @@ func (h *ScrapeHandler) HandleBillboard(w http.ResponseWriter, r *http.Request) 
 			log.Printf("No ISRC found for track: %s by %s", song.Title, song.Artist)
 			continue
 		}
+
+		// Find MBID using the helper function
+		mbid := h.FindMBID(isrc, song.Artist, song.Title)
+		if mbid == "" {
+			log.Printf("No MBID found for track: %s by %s", song.Title, song.Artist)
+			continue
+		}
+
 		newTrack := fs.Track{
-			Rank:   song.Rank,
-			Artist: song.Artist,
-			Title:  song.Title,
-			// TODO: Deprecate this field
+			Rank:      song.Rank,
+			Artist:    song.Artist,
+			Title:     song.Title,
 			ISRC:      isrc,
 			SpotifyID: track.ID.String(),
+			MBID:      mbid,
 		}
 
 		// Find and save thumbnail
@@ -116,7 +120,7 @@ func (h *ScrapeHandler) HandleBillboard(w http.ResponseWriter, r *http.Request) 
 
 		tracks = append(tracks, newTrack)
 		log.Printf("Added new track: %s by %s", track.Name, track.Artists[0].Name)
-		time.Sleep(250 * time.Millisecond) // Rate limit
+		time.Sleep(3 * time.Second) // Rate limit
 	}
 
 	// Save today's data to Firestore

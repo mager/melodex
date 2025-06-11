@@ -76,11 +76,26 @@ func (h *ScrapeHandler) HandleHotNewHipHop(w http.ResponseWriter, r *http.Reques
 		}
 
 		track := results.Tracks.Tracks[0]
+		isrc := track.ExternalIDs["isrc"]
+		if isrc == "" {
+			log.Printf("No ISRC found for track: %s by %s", song.Title, song.Artist)
+			continue
+		}
+
+		// Find MBID using the helper function
+		mbid := h.FindMBID(isrc, song.Artist, song.Title)
+		if mbid == "" {
+			log.Printf("No MBID found for track: %s by %s", song.Title, song.Artist)
+			continue
+		}
+
 		newTrack := fs.Track{
 			Rank:      song.Rank,
 			Artist:    song.Artist,
 			Title:     song.Title,
+			ISRC:      isrc,
 			SpotifyID: track.ID.String(),
+			MBID:      mbid,
 		}
 
 		// Find and save thumbnail
@@ -93,7 +108,7 @@ func (h *ScrapeHandler) HandleHotNewHipHop(w http.ResponseWriter, r *http.Reques
 
 		tracks = append(tracks, newTrack)
 		log.Printf("Added new track: %s by %s", track.Name, track.Artists[0].Name)
-		time.Sleep(250 * time.Millisecond) // Rate limit
+		time.Sleep(3 * time.Second) // Rate limit
 	}
 
 	// Save today's data to Firestore

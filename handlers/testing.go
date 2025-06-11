@@ -82,7 +82,7 @@ func (h *ScrapeHandler) HandleTesting(w http.ResponseWriter, r *http.Request) {
 
 		tracks = append(tracks, t)
 		log.Printf("Added new track: %s by %s", song.Title, song.Artist)
-		time.Sleep(250 * time.Millisecond) // Rate limit
+		time.Sleep(3 * time.Second) // Rate limit
 	}
 
 	// Save today's data to Firestore
