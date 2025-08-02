@@ -10,8 +10,6 @@ import (
 	fs "melodex/firestore"
 	"melodex/scrapers"
 
-	mb "github.com/mager/musicbrainz-go/musicbrainz"
-
 	spotify "github.com/zmb3/spotify/v2"
 )
 
@@ -47,38 +45,13 @@ func (h *ScrapeHandler) HandleTesting(w http.ResponseWriter, r *http.Request) {
 			Title:  song.Title,
 		}
 
-		// Find MBID first by ISRC, then by title and artist
-		if isrc != "" {
-			searchRecsReq := mb.SearchRecordingsByISRCRequest{
-				ISRC: isrc,
-			}
-			recs, err := h.mb.Client.SearchRecordingsByISRC(searchRecsReq)
-			if err != nil {
-				log.Printf("Error getting MBID by ISRC: %v", err)
-			}
-			if len(recs.Recordings) > 0 {
-				t.MBID = recs.Recordings[0].ID
-			}
-		} else {
-			searchRecsReq := mb.SearchRecordingsByArtistAndTrackRequest{
-				Artist: song.Artist,
-				Track:  song.Title,
-			}
-			recs, err := h.mb.Client.SearchRecordingsByArtistAndTrack(searchRecsReq)
-			if err != nil {
-				log.Printf("Error getting MBID by title and artist: %v", err)
-			}
-			if len(recs.Recordings) > 0 {
-				t.MBID = recs.Recordings[0].ID
-			} else {
-				log.Printf("No MBID found for track: %s by %s", song.Title, song.Artist)
-			}
-		}
-
-		if t.MBID == "" {
-			log.Printf("No MBID found for track: %s by %s", song.Title, song.Artist)
+		// Find MBID using the helper function
+		mbid := h.FindMBID(isrc, song.Artist, song.Title)
+		if mbid == "" {
+			log.Printf("Skipping track '%s' by '%s' - no MusicBrainz ID found", song.Title, song.Artist)
 			continue
 		}
+		t.MBID = mbid
 
 		tracks = append(tracks, t)
 		log.Printf("Added new track: %s by %s", song.Title, song.Artist)

@@ -97,7 +97,7 @@ func (h *ScrapeHandler) HandleBillboard(w http.ResponseWriter, r *http.Request) 
 		// Find MBID using the helper function
 		mbid := h.FindMBID(isrc, song.Artist, song.Title)
 		if mbid == "" {
-			log.Printf("No MBID found for track: %s by %s", song.Title, song.Artist)
+			log.Printf("Skipping track '%s' by '%s' - no MusicBrainz ID found", song.Title, song.Artist)
 			continue
 		}
 

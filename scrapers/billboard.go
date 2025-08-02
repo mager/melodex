@@ -16,19 +16,23 @@ func ScrapeBillboardHot100(w http.ResponseWriter) ([]firestore.Song, error) {
 	var songs []firestore.Song
 
 	c.OnHTML("ul.o-chart-results-list-row", func(e *colly.HTMLElement) {
-		rankStr := e.ChildText("li.o-chart-results-list__item span.c-label.a-font-primary-bold-l")
+		rankStr := e.ChildText("li.o-chart-results-list__item:first-child span.c-label")
 		rankStr = strings.Split(rankStr, "\n")[0]
 		rank, err := strconv.Atoi(strings.TrimSpace(rankStr))
 		if err != nil {
 			log.Printf("Error converting rank to integer: %v", err)
 			rank = 0
 		}
-		title := strings.TrimSpace(e.ChildText("li.o-chart-results-list__item h3.c-title"))
-		artist := e.ChildText("li.o-chart-results-list__item span.c-label:not(.a-font-primary-bold-l):not(.u-width-45):not(.u-width-40)")
+
+		title := strings.TrimSpace(e.ChildText("h3.c-title.a-font-basic"))
+		artist := e.ChildText("span.c-label.a-font-secondary")
 		artist = strings.Split(artist, "\n")[0]
 		artist = strings.TrimSpace(artist)
 
-		songs = append(songs, firestore.Song{Rank: rank, Title: title, Artist: artist})
+		// Only add if we have valid data
+		if rank > 0 && title != "" && artist != "" {
+			songs = append(songs, firestore.Song{Rank: rank, Title: title, Artist: artist})
+		}
 	})
 
 	c.OnRequest(func(r *colly.Request) {
@@ -47,6 +51,7 @@ func ScrapeBillboardHot100(w http.ResponseWriter) ([]firestore.Song, error) {
 		return nil, err
 	}
 
+	log.Printf("Scraped %d songs from Billboard", len(songs))
 	return songs, nil
 }
 

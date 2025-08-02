@@ -15,8 +15,7 @@ func ProvideMusicbrainz() *MusicbrainzClient {
 	var c MusicbrainzClient
 	c.Client = musicbrainz.NewMusicbrainzClient().
 		WithUserAgent("beatbrain/melodex", "1.0.0", "https://github.com/mager/melodex")
-	// MusicBrainz requires at least 3 seconds between requests
-	c.rateLimiter = NewRateLimiter(3 * time.Second)
+	c.rateLimiter = NewRateLimiter(250 * time.Millisecond)
 	return &c
 }
 
