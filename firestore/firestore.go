@@ -3,6 +3,7 @@ package firestore
 import (
 	"context"
 	"log"
+	"time"
 
 	"cloud.google.com/go/firestore"
 )
@@ -18,6 +19,10 @@ type Track struct {
 	Thumb     string `json:"thumb,omitempty" firestore:"thumb,omitempty"`
 	ISRC      string `json:"isrc,omitempty" firestore:"isrc,omitempty"`
 	SpotifyID string `json:"spotifyID,omitempty" firestore:"spotifyID,omitempty"`
+	
+	// New fields for melodex v2
+	Source    string    `json:"source,omitempty" firestore:"source,omitempty"`
+	CreatedAt time.Time `json:"createdAt,omitempty" firestore:"createdAt,omitempty"`
 }
 
 // ProvideDB provides a firestore client

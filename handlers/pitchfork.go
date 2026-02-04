@@ -14,21 +14,20 @@ import (
 	"melodex/scrapers"
 )
 
-func (h *ScrapeHandler) HandleBillboard(w http.ResponseWriter, r *http.Request) {
+func (h *ScrapeHandler) HandlePitchfork(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	debugMode := r.URL.Query().Get("debug") == "true"
 
 	today := time.Now().Format("2006-01-02")
 	yesterday := time.Now().Add(-24 * time.Hour).Format("2006-01-02")
-	log.Printf("Checking if document for today (%s) exists", today)
+	log.Printf("Checking if document for today (%s) exists in pitchfork_bnm", today)
 
 	// Skip DB check in debug mode
 	if !debugMode {
-		// Check if today's document exists
-		doc, err := h.db.Collection("billboard").Doc(today).Get(ctx)
+		doc, err := h.db.Collection("pitchfork_bnm").Doc(today).Get(ctx)
 		if err == nil && doc.Exists() {
 			http.Error(w, "Data for today already exists", http.StatusConflict)
-			log.Printf("Data for today (%s) already exists", today)
+			log.Printf("Data for today (%s) already exists in pitchfork_bnm", today)
 			return
 		} else if err != nil {
 			log.Printf("Error checking today's document existence: %v", err)
@@ -37,10 +36,10 @@ func (h *ScrapeHandler) HandleBillboard(w http.ResponseWriter, r *http.Request) 
 		log.Printf("Debug mode: Skipping database existence check")
 	}
 
-	// Fetch yesterday's data into a map
+	// Fetch yesterday's data for reuse
 	yesterdayData := make(map[string]fs.Track)
 	if !debugMode {
-		doc, err := h.db.Collection("billboard").Doc(yesterday).Get(ctx)
+		doc, err := h.db.Collection("pitchfork_bnm").Doc(yesterday).Get(ctx)
 		if err == nil && doc.Exists() {
 			var yesterdayTracks struct {
 				Tracks []fs.Track `json:"tracks"`
@@ -50,21 +49,18 @@ func (h *ScrapeHandler) HandleBillboard(w http.ResponseWriter, r *http.Request) 
 					key := track.Artist + " - " + track.Title
 					yesterdayData[key] = track
 				}
-				log.Printf("Loaded %d tracks from yesterday's data", len(yesterdayData))
+				log.Printf("Loaded %d tracks from yesterday's pitchfork_bnm data", len(yesterdayData))
 			}
 		} else if err != nil {
-			log.Printf("No data found for yesterday (%s): %v", yesterday, err)
+			log.Printf("No pitchfork_bnm data found for yesterday (%s): %v", yesterday, err)
 		}
-	} else {
-		log.Printf("Debug mode: Skipping yesterday's data fetch")
 	}
 
-	// Scrape today's Billboard data
-	log.Printf("Scraping Billboard Hot 100")
-	songs, err := scrapers.ScrapeBillboardHot100(w)
+	log.Printf("Scraping Pitchfork Best New Tracks")
+	songs, err := scrapers.ScrapePitchforkBestNewTracks(w)
 	if err != nil {
-		http.Error(w, "Failed to scrape Billboard Hot 100: "+err.Error(), http.StatusInternalServerError)
-		log.Printf("Scraping failed: %v", err)
+		http.Error(w, "Failed to scrape Pitchfork: "+err.Error(), http.StatusInternalServerError)
+		log.Printf("Pitchfork scraping failed: %v", err)
 		return
 	}
 
@@ -72,9 +68,8 @@ func (h *ScrapeHandler) HandleBillboard(w http.ResponseWriter, r *http.Request) 
 	for _, song := range songs {
 		key := song.Artist + " - " + song.Title
 		if existingTrack, found := yesterdayData[key]; found {
-			// Reuse yesterday's track metadata
 			tracks = append(tracks, existingTrack)
-			log.Printf("Reused metadata for track: %s by %s", song.Title, song.Artist)
+			log.Printf("Reused metadata for Pitchfork track: %s by %s", song.Title, song.Artist)
 			continue
 		}
 
@@ -83,22 +78,26 @@ func (h *ScrapeHandler) HandleBillboard(w http.ResponseWriter, r *http.Request) 
 		results, err := h.sp.Client.Search(ctx, q, spotify.SearchTypeTrack)
 		if err != nil || results.Tracks == nil || len(results.Tracks.Tracks) == 0 {
 			log.Printf("Spotify search failed for query: %s", q)
-			tracks = append(tracks, fs.Track{Rank: song.Rank, Artist: song.Artist, Title: song.Title})
+			tracks = append(tracks, fs.Track{
+				Rank:      song.Rank,
+				Artist:    song.Artist,
+				Title:     song.Title,
+				Source:    "pitchfork_bnm",
+				CreatedAt: time.Now(),
+			})
 			continue
 		}
 
 		track := results.Tracks.Tracks[0]
 		isrc := track.ExternalIDs["isrc"]
 		if isrc == "" {
-			log.Printf("No ISRC found for track: %s by %s", song.Title, song.Artist)
+			log.Printf("No ISRC found for Pitchfork track: %s by %s", song.Title, song.Artist)
 			continue
 		}
 
-		// Find MBID using the helper function
 		mbid := h.FindMBID(isrc, song.Artist, song.Title)
 		if mbid == "" {
-			log.Printf("No MBID found for track: %s by %s", song.Title, song.Artist)
-			continue
+			log.Printf("No MBID found for Pitchfork track: %s by %s", song.Title, song.Artist)
 		}
 
 		newTrack := fs.Track{
@@ -108,11 +107,10 @@ func (h *ScrapeHandler) HandleBillboard(w http.ResponseWriter, r *http.Request) 
 			ISRC:      isrc,
 			SpotifyID: track.ID.String(),
 			MBID:      mbid,
-			Source:    "billboard",
+			Source:    "pitchfork_bnm",
 			CreatedAt: time.Now(),
 		}
 
-		// Find and save thumbnail
 		for _, image := range track.Album.Images {
 			if image.Height == 300 && image.Width == 300 {
 				newTrack.Thumb = strings.TrimPrefix(image.URL, "https://i.scdn.co/image/")
@@ -121,13 +119,13 @@ func (h *ScrapeHandler) HandleBillboard(w http.ResponseWriter, r *http.Request) 
 		}
 
 		tracks = append(tracks, newTrack)
-		log.Printf("Added new track: %s by %s", track.Name, track.Artists[0].Name)
+		log.Printf("Added Pitchfork track: %s by %s", track.Name, track.Artists[0].Name)
 		time.Sleep(3 * time.Second) // Rate limit
 	}
 
 	// Save today's data to Firestore
 	if !debugMode {
-		_, err = h.db.Collection("billboard").Doc(today).Set(ctx, map[string]interface{}{
+		_, err = h.db.Collection("pitchfork_bnm").Doc(today).Set(ctx, map[string]interface{}{
 			"tracks": tracks,
 		})
 		if err != nil {
@@ -135,32 +133,10 @@ func (h *ScrapeHandler) HandleBillboard(w http.ResponseWriter, r *http.Request) 
 			log.Printf("Failed to update Firestore: %v", err)
 			return
 		}
-		log.Printf("Successfully created document for today (%s)", today)
+		log.Printf("Successfully created pitchfork_bnm document for today (%s)", today)
 	} else {
 		log.Printf("Debug mode: Skipping database save")
 	}
 
 	json.NewEncoder(w).Encode(tracks)
-}
-
-func buildSpotifyQuery(artist, title string) string {
-	// Clean up artist name by removing "Featuring" and similar words
-	patterns := []string{
-		" Featuring ", " featuring ",
-		" feat. ", " feat ",
-		" ft. ", " ft ",
-	}
-
-	cleanArtist := artist
-	for _, pattern := range patterns {
-		cleanArtist = strings.ReplaceAll(cleanArtist, pattern, " ")
-	}
-
-	var q strings.Builder
-	q.WriteString("artist:")
-	q.WriteString(cleanArtist)
-	q.WriteString(" ")
-	q.WriteString("track:")
-	q.WriteString(title)
-	return q.String()
 }

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 
 	"cloud.google.com/go/firestore"
 
+	fs "melodex/firestore"
 	mb "melodex/musicbrainz"
 	spot "melodex/spotify"
 )
@@ -48,17 +50,12 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 	target := req.Target
 
-	// Handle default case where no target is provided
+	// Handle default case where no target is provided — run ALL scrapers concurrently
 	if target == "" {
-		errChan := make(chan error, 3)
+		errChan := make(chan error, 5)
 
 		go func() {
 			h.HandleBillboard(w, r)
-			errChan <- nil
-		}()
-
-		go func() {
-			h.HandleHypeMachine(w, r)
 			errChan <- nil
 		}()
 
@@ -67,20 +64,49 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 			errChan <- nil
 		}()
 
-		// Collect results from both goroutines
-		for i := 0; i < 3; i++ {
+		go func() {
+			h.HandleSpotifyNewReleases(w, r)
+			errChan <- nil
+		}()
+
+		go func() {
+			h.HandleReddit(w, r)
+			errChan <- nil
+		}()
+
+		go func() {
+			h.HandlePitchfork(w, r)
+			errChan <- nil
+		}()
+
+		// Collect results from all goroutines
+		for i := 0; i < 5; i++ {
 			if err := <-errChan; err != nil {
 				log.Printf("Error in scraping: %v", err)
 			}
 		}
-
 		close(errChan)
+
+		// Run Firestore TTL cleanup after all scrapes complete
+		ctx := context.Background()
+		if err := fs.RunCleanup(ctx, h.db); err != nil {
+			log.Printf("Error during TTL cleanup: %v", err)
+		}
 
 		return
 	}
 
-	// Validate target
-	if !slices.Contains([]string{"testing", "billboard-hot-100", "hype-machine", "hot-new-hip-hop"}, target) {
+	// Valid targets
+	validTargets := []string{
+		"testing",
+		"billboard-hot-100",
+		"hot-new-hip-hop",
+		"spotify-new-releases",
+		"reddit-fresh",
+		"pitchfork-bnm",
+	}
+
+	if !slices.Contains(validTargets, target) {
 		http.Error(w, "Invalid target", http.StatusBadRequest)
 		log.Printf("Invalid target: %s", target)
 		return
@@ -92,10 +118,14 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		h.HandleTesting(w, r)
 	case "billboard-hot-100":
 		h.HandleBillboard(w, r)
-	case "hype-machine":
-		h.HandleHypeMachine(w, r)
 	case "hot-new-hip-hop":
 		h.HandleHotNewHipHop(w, r)
+	case "spotify-new-releases":
+		h.HandleSpotifyNewReleases(w, r)
+	case "reddit-fresh":
+		h.HandleReddit(w, r)
+	case "pitchfork-bnm":
+		h.HandlePitchfork(w, r)
 	default:
 		log.Printf("Unhandled target: %s", target)
 	}

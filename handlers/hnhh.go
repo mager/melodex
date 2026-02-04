@@ -96,6 +96,8 @@ func (h *ScrapeHandler) HandleHotNewHipHop(w http.ResponseWriter, r *http.Reques
 			ISRC:      isrc,
 			SpotifyID: track.ID.String(),
 			MBID:      mbid,
+			Source:    "hnhh",
+			CreatedAt: time.Now(),
 		}
 
 		// Find and save thumbnail
