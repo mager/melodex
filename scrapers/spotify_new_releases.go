@@ -13,10 +13,14 @@ import (
 	"github.com/zmb3/spotify/v2"
 )
 
+const maxTracksPerArtist = 2
+
 // ScrapeSpotifyNewReleases fetches new releases from Spotify API.
+// Limits to maxTracksPerArtist per artist to avoid album explosion.
 func ScrapeSpotifyNewReleases(w http.ResponseWriter, sp *spot.SpotifyClient) ([]fs.Track, error) {
 	ctx := context.Background()
 	var tracks []fs.Track
+	artistCount := make(map[string]int) // track count per artist
 
 	// Get new releases (albums)
 	newReleases, err := sp.Client.NewReleases(ctx, spotify.Limit(50))
@@ -38,6 +42,13 @@ func ScrapeSpotifyNewReleases(w http.ResponseWriter, sp *spot.SpotifyClient) ([]
 		}
 
 		for _, track := range albumTracks.Tracks {
+			artistName := track.Artists[0].Name
+
+			// Skip if we already have enough tracks from this artist
+			if artistCount[artistName] >= maxTracksPerArtist {
+				continue
+			}
+
 			// Get full track info to access external IDs
 			fullTrack, err := sp.Client.GetTrack(ctx, track.ID)
 			if err != nil {
@@ -59,7 +70,7 @@ func ScrapeSpotifyNewReleases(w http.ResponseWriter, sp *spot.SpotifyClient) ([]
 
 			newTrack := fs.Track{
 				Rank:      rank,
-				Artist:    track.Artists[0].Name,
+				Artist:    artistName,
 				Title:     track.Name,
 				ISRC:      isrc,
 				SpotifyID: track.ID.String(),
@@ -69,9 +80,10 @@ func ScrapeSpotifyNewReleases(w http.ResponseWriter, sp *spot.SpotifyClient) ([]
 			}
 
 			tracks = append(tracks, newTrack)
+			artistCount[artistName]++
 			rank++
 
-			// Limit to avoid too many tracks
+			// Limit total tracks
 			if rank > 100 {
 				break
 			}
@@ -82,7 +94,7 @@ func ScrapeSpotifyNewReleases(w http.ResponseWriter, sp *spot.SpotifyClient) ([]
 		}
 	}
 
-	log.Printf("Scraped %d tracks from Spotify new releases", len(tracks))
+	log.Printf("Scraped %d tracks from Spotify new releases (max %d per artist)", len(tracks), maxTracksPerArtist)
 	return tracks, nil
 }
 
