@@ -43,6 +43,10 @@ func NewRouter(
 	whosampledHandler := h.NewWhoSampledHandler(db, sp)
 	r.HandleFunc("/whosampled", whosampledHandler.Handle).Methods("POST")
 
+	// Podcast routes
+	r.HandleFunc("/podcasts/scrape", scrapeHandler.HandlePodcasts).Methods("POST")
+	r.HandleFunc("/podcasts/categories", scrapeHandler.HandlePodcastCategories).Methods("GET")
+
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("API is running"))
 	})

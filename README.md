@@ -1,6 +1,6 @@
-# Melodex v2 - Music Discovery Scraper
+# Melodex v2 - Music & Podcast Discovery Scraper
 
-Melodex is a comprehensive music discovery service that scrapes multiple music sources, enriches tracks via Spotify and MusicBrainz APIs, and stores them in Firestore for consumption by the BeatBrain discovery frontend.
+Melodex is a comprehensive discovery service that scrapes multiple music sources and podcast shows, enriches tracks via Spotify and MusicBrainz APIs, and stores them in Firestore for consumption by the BeatBrain discovery frontend.
 
 ## Architecture Overview
 
@@ -21,6 +21,80 @@ The system consists of several components:
 | **Hot New Hip Hop** | HNHH Top 100 chart scrape | 0.7 | `hnhh` |
 | **Pitchfork Best New Music** | Pitchfork Best New Tracks page | 0.6 | `pitchfork_bnm` |
 | **Billboard Hot 100** | Billboard Hot 100 chart scrape | 0.5 | `billboard` |
+
+## Podcast Discovery
+
+Melodex now includes podcast show discovery across **100+ categories**, helping users find niche podcasts in specialized fields.
+
+### Categories Include:
+- Arts, Books, Business, Comedy, Education, Fiction, Government
+- History, Health, Kids, Linguistics, Music, News, Religion
+- Science, Society, Sports, Technology, True Crime, TV & Film
+- **Niche specialties**: Astronomy, Blockchain, Cybersecurity, Linguistics, Stoicism, DJing, Firefighting, and 80+ more
+
+### API Endpoints
+
+#### POST /podcasts/scrape
+Discover podcast shows across categories.
+
+**Request Body:**
+```json
+{
+  "category": "Linguistics",    // Optional: specific category
+  "queries": ["syntax", "grammar"], // Optional: custom search queries
+  "maxShows": 20                // Optional: max shows per query (default: 20)
+}
+```
+
+**Response:**
+```json
+[
+  {
+    "category": "Linguistics",
+    "showsFound": 45,
+    "newShows": 12,
+    "message": "Success"
+  }
+]
+```
+
+**To scrape all categories:** Send empty body `{}` or omit body entirely.
+
+#### GET /podcasts/categories
+Returns all 100+ available podcast categories.
+
+**Response:**
+```json
+{
+  "count": 100,
+  "categories": ["Arts", "Books", "Business", ...]
+}
+```
+
+### Firestore Schema
+
+Podcast shows are stored in the `podcast_shows` collection:
+
+```json
+{
+  "id": "spotify-show-id",
+  "name": "Show Name",
+  "publisher": "Publisher Name",
+  "description": "Show description...",
+  "categories": ["Linguistics", "Education"],
+  "languages": ["en"],
+  "imageURL": "https://...",
+  "episodeCount": 150,
+  "explicit": false,
+  "externalURL": "https://open.spotify.com/show/...",
+  "mediaType": "audio",
+  "discoveredIn": "Linguistics",
+  "firstSeenAt": "2024-03-12T20:00:00Z",
+  "lastUpdated": "2024-03-12T20:00:00Z"
+}
+```
+
+Note: Podcast shows are **not** TTL-cleared — they persist as a catalog for discovery.
 
 ## Scoring Algorithm
 
@@ -101,6 +175,7 @@ Triggers scraping for specific sources or all sources.
 - `reddit-fresh`
 - `pitchfork-bnm`
 - `hot-new-hip-hop`
+- `spotify-podcasts` - Podcast show discovery
 - Empty/null = all sources
 
 **Query Parameters:**

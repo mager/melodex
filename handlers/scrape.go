@@ -52,7 +52,7 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	// Handle default case where no target is provided — run ALL scrapers concurrently
 	if target == "" {
-		errChan := make(chan error, 5)
+		errChan := make(chan error, 6)
 
 		go func() {
 			h.HandleBillboard(w, r)
@@ -79,8 +79,13 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 			errChan <- nil
 		}()
 
+		go func() {
+			h.HandlePodcasts(w, r)
+			errChan <- nil
+		}()
+
 		// Collect results from all goroutines
-		for i := 0; i < 5; i++ {
+		for i := 0; i < 6; i++ {
 			if err := <-errChan; err != nil {
 				log.Printf("Error in scraping: %v", err)
 			}
@@ -104,6 +109,7 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		"spotify-new-releases",
 		"reddit-fresh",
 		"pitchfork-bnm",
+		"spotify-podcasts",
 	}
 
 	if !slices.Contains(validTargets, target) {
@@ -126,6 +132,8 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		h.HandleReddit(w, r)
 	case "pitchfork-bnm":
 		h.HandlePitchfork(w, r)
+	case "spotify-podcasts":
+		h.HandlePodcasts(w, r)
 	default:
 		log.Printf("Unhandled target: %s", target)
 	}
