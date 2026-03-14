@@ -10,18 +10,18 @@ import (
 
 // PodcastShow represents a podcast show from Spotify
 type PodcastShow struct {
-	ID           string   `json:"id"`
-	Name         string   `json:"name"`
-	Publisher    string   `json:"publisher"`
-	Description  string   `json:"description"`
-	HTMLDescription string `json:"htmlDescription,omitempty"`
-	Categories   []string `json:"categories"` // Our mapped categories
-	Languages    []string `json:"languages"`
-	ImageURL     string   `json:"imageURL"`
-	EpisodeCount int      `json:"episodeCount"`
-	Explicit     bool     `json:"explicit"`
-	ExternalURL  string   `json:"externalURL"`
-	MediaType    string   `json:"mediaType"`
+	ID              string   `json:"id"`
+	Name            string   `json:"name"`
+	Publisher       string   `json:"publisher"`
+	Description     string   `json:"description"`
+	HTMLDescription string   `json:"htmlDescription,omitempty"`
+	Categories      []string `json:"categories"` // Our mapped categories
+	Languages       []string `json:"languages"`
+	ImageURL        string   `json:"imageURL"`
+	EpisodeCount    int      `json:"episodeCount"`
+	Explicit        bool     `json:"explicit"`
+	ExternalURL     string   `json:"externalURL"`
+	MediaType       string   `json:"mediaType"`
 }
 
 // CategorySearchQueries maps our custom categories to Spotify search queries
@@ -30,135 +30,135 @@ type CategorySearchQueries struct {
 	Queries  []string `json:"queries"`
 }
 
-// DefaultPodcastCategories - 100+ categories for discovery
+// DefaultPodcastCategories - optimized queries for popular podcast discovery.
+//
+// Strategy: Use "best X podcast" and "[topic] podcast" phrasing.
+// Spotify search heavily weights title matches and popularity for these
+// intent-based queries, surfacing the shows people actually listen to
+// instead of random keyword matches in descriptions.
+//
+// Each category uses 2-4 high-signal queries rather than 4-6 generic keywords.
 var DefaultPodcastCategories = []CategorySearchQueries{
-	{"Arts", []string{"arts", "design", "photography"}},
-	{"Books", []string{"books", "literature", "reading", "book review"}},
-	{"Business", []string{"business", "entrepreneurship", "startups", "marketing", "leadership"}},
-	{"Comedy", []string{"comedy", "standup", "humor", "funny"}},
-	{"Education", []string{"education", "learning", "teaching", "study"}},
-	{"Fiction", []string{"fiction", "storytelling", "drama", "audio drama"}},
-	{"Government", []string{"government", "politics", "policy", "civics"}},
-	{"History", []string{"history", "historical", "past", "archives"}},
-	{"Health", []string{"health", "fitness", "wellness", "mental health"}},
-	{"Kids", []string{"kids", "children", "family", "parenting"}},
-	{"Linguistics", []string{"linguistics", "language", "etymology", "syntax", "grammar", "philology"}},
-	{"Music", []string{"music", "musician", "audio production", "music history"}},
-	{"News", []string{"news", "journalism", "current events", "headlines"}},
-	{"Religion", []string{"religion", "spirituality", "faith", "theology"}},
-	{"Science", []string{"science", "research", "discovery", "scientific"}},
-	{"Society", []string{"society", "culture", "social issues", "community"}},
-	{"Sports", []string{"sports", "athletics", "fitness", "games"}},
-	{"Technology", []string{"technology", "tech", "software", "computing", "AI", "programming"}},
-	{"True Crime", []string{"true crime", "crime", "investigation", "criminal"}},
-	{"TV & Film", []string{"tv", "film", "movies", "cinema", "television"}},
-	// Niche categories for deep discovery
-	{"Astronomy", []string{"astronomy", "space", "cosmos", "astrophysics"}},
-	{"Biology", []string{"biology", "life science", "genetics", "evolution"}},
-	{"Chemistry", []string{"chemistry", "chemical", "molecules"}},
-	{"Philosophy", []string{"philosophy", "philosophical", "ethics", "metaphysics"}},
-	{"Psychology", []string{"psychology", "mental", "behavior", "cognitive"}},
-	{"Economics", []string{"economics", "finance", "markets", "trading"}},
-	{"Law", []string{"law", "legal", "court", "justice"}},
-	{"Medicine", []string{"medicine", "medical", "doctor", "healthcare"}},
-	{"Physics", []string{"physics", "physical science", "quantum", "mechanics"}},
-	{"Anthropology", []string{"anthropology", "anthropological", "culture", "human"}},
-	{"Archaeology", []string{"archaeology", "archaeological", "ancient", "digs"}},
-	{"Architecture", []string{"architecture", "design", "buildings", "urban"}},
-	{"Astronomy", []string{"astronomy", "space", "cosmos", "stars"}},
-	{"Blockchain", []string{"blockchain", "crypto", "bitcoin", "web3"}},
-	{"Climate", []string{"climate", "environment", "ecology", "green"}},
-	{"Cooking", []string{"cooking", "food", "culinary", "recipes", "chef"}},
-	{"Crafts", []string{"crafts", "diy", "making", "handmade"}},
-	{"Cybersecurity", []string{"cybersecurity", "hacking", "security", "infosec"}},
-	{"Dating", []string{"dating", "relationships", "romance", "love"}},
-	{"Documentary", []string{"documentary", "non-fiction", "real stories"}},
-	{"Entrepreneurship", []string{"entrepreneurship", "founder", "startup", "venture"}},
-	{"Fashion", []string{"fashion", "style", "clothing", "trends"}},
-	{"Gaming", []string{"gaming", "video games", "esports", "game design"}},
-	{"Gardening", []string{"gardening", "plants", "horticulture", "growing"}},
-	{"Investing", []string{"investing", "stocks", "portfolio", "wealth"}},
-	{"Language Learning", []string{"language learning", "learn language", "polyglot", "bilingual"}},
-	{"Meditation", []string{"meditation", "mindfulness", "zen", "relaxation"}},
-	{"Military", []string{"military", "war", "defense", "veterans"}},
-	{"Mythology", []string{"mythology", "myths", "legends", "folklore"}},
-	{"Nature", []string{"nature", "wildlife", "outdoors", "animals"}},
-	{"Nutrition", []string{"nutrition", "diet", "healthy eating", "supplements"}},
-	{"Parenting", []string{"parenting", "motherhood", "fatherhood", "raising kids"}},
-	{"Personal Finance", []string{"personal finance", "budget", "saving", "money"}},
-	{"Pets", []string{"pets", "dogs", "cats", "animals"}},
-	{"Photography", []string{"photography", "photos", "camera", "shooting"}},
-	{"Productivity", []string{"productivity", "time management", "efficiency", "habits"}},
-	{"Real Estate", []string{"real estate", "housing", "property", "investment"}},
-	{"Self Help", []string{"self help", "self improvement", "personal growth", "development"}},
-	{"Skepticism", []string{"skepticism", "critical thinking", "debunking", "science"}},
-	{"Space", []string{"space", "NASA", "rockets", "exploration"}},
-	{"Travel", []string{"travel", "adventure", "backpacking", "destinations"}},
-	{"Writing", []string{"writing", "author", "storytelling", "publishing"}},
-	{"AI & Machine Learning", []string{"artificial intelligence", "machine learning", "AI", "deep learning"}},
-	{"Data Science", []string{"data science", "data analytics", "big data", "statistics"}},
-	{"DevOps", []string{"devops", "SRE", "infrastructure", "cloud"}},
-	{"Frontend Development", []string{"frontend", "javascript", "react", "web development"}},
-	{"Backend Development", []string{"backend", "API", "server", "database"}},
-	{"Mobile Development", []string{"mobile development", "iOS", "Android", "app development"}},
-	{"Open Source", []string{"open source", "github", "contribution", "community"}},
-	{"UX Design", []string{"UX design", "user experience", "product design", "HCI"}},
-	{"Neuroscience", []string{"neuroscience", "brain", "neurobiology", "cognition"}},
-	{"Paleontology", []string{"paleontology", "dinosaurs", "fossils", "prehistoric"}},
-	{"Sociology", []string{"sociology", "social science", "culture", "behavior"}},
-	{"Theater", []string{"theater", "acting", "drama", "performance"}},
-	{"Visual Arts", []string{"visual arts", "art history", "painting", "sculpture"}},
-	{"Wine", []string{"wine", "wine tasting", "sommelier", "vineyard"}},
-	{"Beer", []string{"beer", "brewing", "craft beer", "homebrew"}},
-	{"Coffee", []string{"coffee", "barista", "roasting", "brewing"}},
-	{"Chess", []string{"chess", "strategy", "tactics", "grandmaster"}},
-	{"Poker", []string{"poker", "gambling", "strategy", "cards"}},
-	{"MMA", []string{"MMA", "martial arts", "UFC", "fighting"}},
-	{"Basketball", []string{"basketball", "NBA", "hoops", "ball"}},
-	{"Football", []string{"football", "NFL", "gridiron"}},
-	{"Soccer", []string{"soccer", "football", "premier league", "futbol"}},
-	{"Baseball", []string{"baseball", "MLB", "diamond"}},
-	{"Hockey", []string{"hockey", "NHL", "ice"}},
-	{"Tennis", []string{"tennis", "ATP", "WTA", "grand slam"}},
-	{"Golf", []string{"golf", "PGA", "links", "tour"}},
-	{"Running", []string{"running", "marathon", "trail running", "jogging"}},
-	{"Cycling", []string{"cycling", "biking", "tour de france", "peloton"}},
-	{"Swimming", []string{"swimming", "aquatics", "pool", "open water"}},
-	{"Yoga", []string{"yoga", "asana", "practice", "mindfulness"}},
-	{"Pilates", []string{"pilates", "core", "fitness", "exercise"}},
-	{"Weightlifting", []string{"weightlifting", "strength", "powerlifting", "gym"}},
-	{"CrossFit", []string{"crossfit", "functional fitness", "WOD", "metcon"}},
-	{"Hiking", []string{"hiking", "trekking", "backpacking", "trails"}},
-	{"Camping", []string{"camping", "outdoors", "wilderness", "survival"}},
-	{"Fishing", []string{"fishing", "angling", "fly fishing", "bass"}},
-	{"Hunting", []string{"hunting", "outdoors", "conservation", "wild game"}},
-	{"Birding", []string{"birding", "bird watching", "ornithology", "species"}},
-	{"Stoicism", []string{"stoicism", "stoic", "marcus aurelius", "philosophy"}},
-	{"Existentialism", []string{"existentialism", "sartre", "camus", "meaning"}},
-	{"Minimalism", []string{"minimalism", "simple living", "declutter", "intentional"}},
-	{"Firefighting", []string{"firefighting", "fire service", "emergency", "first responder"}},
-	{"Police", []string{"police", "law enforcement", "officer", "patrol"}},
-	{"EMS", []string{"EMS", "paramedic", "EMT", "emergency medical"}},
-	{"Nursing", []string{"nursing", "nurse", "healthcare", "RN"}},
-	{"Teaching", []string{"teaching", "teacher", "education", "classroom"}},
-	{"Aviation", []string{"aviation", "flying", "pilot", "aircraft"}},
-	{"Boating", []string{"boating", "sailing", "yacht", "maritime"}},
-	{"Motorcycles", []string{"motorcycles", "riding", "motorbike", "chopper"}},
-	{"Cars", []string{"cars", "automotive", "racing", "mechanic"}},
-	{"Trains", []string{"trains", "railways", "locomotive", "model trains"}},
-	{"DJing", []string{"DJ", "DJing", "turntablism", "mixing"}},
-	{"Electronic Music", []string{"electronic music", "EDM", "synthesizer", "production"}},
-	{"Jazz", []string{"jazz", "improvisation", "bebop", "standards"}},
-	{"Classical Music", []string{"classical music", "orchestra", "symphony", "opera"}},
-	{"Hip Hop", []string{"hip hop", "rap", "MC", "urban"}},
-	{"Rock Music", []string{"rock", "alternative", "indie", "metal"}},
-	{"Country Music", []string{"country", "western", "honky tonk", "americana"}},
-	{"Blues", []string{"blues", "delta blues", "Chicago blues", "guitar"}},
-	{"Folk", []string{"folk", "traditional", "acoustic", "roots"}},
-	{"R&B", []string{"R&B", "soul", "funk", "motown"}},
-	{"Reggae", []string{"reggae", "dub", "dancehall", "roots"}},
-	{"Latin Music", []string{"latin music", "salsa", "bachata", "reggaeton"}},
-	{"World Music", []string{"world music", "global", "international", "ethnic"}},
+	// ─── CORE CATEGORIES ───
+	{"Arts", []string{"best arts podcast", "arts and culture podcast", "creative podcast"}},
+	{"Books", []string{"best book podcast", "book review podcast", "book club podcast"}},
+	{"Business", []string{"best business podcast", "business news podcast", "how I built this"}},
+	{"Comedy", []string{"best comedy podcast", "funny podcast", "stand up comedy podcast"}},
+	{"Education", []string{"best education podcast", "learning podcast", "educational podcast"}},
+	{"Fiction", []string{"best fiction podcast", "audio drama podcast", "storytelling podcast"}},
+	{"Government", []string{"politics podcast", "government podcast", "political analysis podcast"}},
+	{"History", []string{"best history podcast", "history podcast", "historical podcast"}},
+	{"Health", []string{"best health podcast", "health and wellness podcast", "mental health podcast"}},
+	{"Kids", []string{"best kids podcast", "children podcast", "family podcast", "stories for kids"}},
+	{"Linguistics", []string{"linguistics podcast", "language podcast", "etymology podcast"}},
+	{"Music", []string{"best music podcast", "music interview podcast", "music history podcast", "song exploder"}},
+	{"News", []string{"best news podcast", "daily news podcast", "news analysis podcast"}},
+	{"Religion", []string{"best religion podcast", "faith podcast", "spirituality podcast", "theology podcast"}},
+	{"Science", []string{"best science podcast", "science explained podcast", "popular science podcast"}},
+	{"Society", []string{"society and culture podcast", "social issues podcast", "culture podcast"}},
+	{"Sports", []string{"best sports podcast", "sports news podcast", "sports analysis podcast"}},
+	{"Technology", []string{"best tech podcast", "technology news podcast", "tech podcast", "silicon valley podcast"}},
+	{"True Crime", []string{"best true crime podcast", "true crime podcast", "crime podcast", "murder mystery podcast"}},
+	{"TV & Film", []string{"best tv podcast", "movie podcast", "film review podcast", "pop culture podcast"}},
+
+	// ─── SCIENCE & ACADEMIC ───
+	{"Astronomy", []string{"best astronomy podcast", "space podcast", "astrophysics podcast", "NASA podcast"}},
+	{"Biology", []string{"biology podcast", "life science podcast", "evolution podcast"}},
+	{"Chemistry", []string{"chemistry podcast", "chemical science podcast"}},
+	{"Philosophy", []string{"best philosophy podcast", "philosophy podcast", "ethics podcast", "stoicism podcast"}},
+	{"Psychology", []string{"best psychology podcast", "psychology today podcast", "behavioral science podcast"}},
+	{"Neuroscience", []string{"neuroscience podcast", "brain science podcast", "cognitive science podcast"}},
+	{"Physics", []string{"physics podcast", "quantum physics podcast", "theoretical physics podcast"}},
+	{"Anthropology", []string{"anthropology podcast", "human culture podcast"}},
+	{"Archaeology", []string{"archaeology podcast", "ancient history podcast"}},
+	{"Paleontology", []string{"paleontology podcast", "dinosaur podcast", "fossil podcast"}},
+	{"Sociology", []string{"sociology podcast", "social science podcast"}},
+
+	// ─── BUSINESS & FINANCE ───
+	{"Economics", []string{"best economics podcast", "economics explained podcast", "freakonomics"}},
+	{"Entrepreneurship", []string{"best entrepreneurship podcast", "startup podcast", "founder podcast", "how I built this"}},
+	{"Investing", []string{"best investing podcast", "stock market podcast", "investing for beginners podcast"}},
+	{"Personal Finance", []string{"best personal finance podcast", "money podcast", "financial independence podcast", "all the hacks podcast"}},
+	{"Real Estate", []string{"best real estate podcast", "real estate investing podcast", "property podcast"}},
+
+	// ─── TECH & DEV ───
+	{"AI & Machine Learning", []string{"best AI podcast", "artificial intelligence podcast", "machine learning podcast", "AI news podcast"}},
+	{"Blockchain", []string{"best crypto podcast", "blockchain podcast", "bitcoin podcast", "web3 podcast"}},
+	{"Cybersecurity", []string{"best cybersecurity podcast", "hacking podcast", "infosec podcast", "security podcast"}},
+	{"Data Science", []string{"data science podcast", "data analytics podcast", "statistics podcast"}},
+	{"Frontend Development", []string{"frontend podcast", "javascript podcast", "web development podcast", "react podcast"}},
+	{"Backend Development", []string{"backend development podcast", "software engineering podcast", "API podcast"}},
+	{"Mobile Development", []string{"mobile development podcast", "iOS podcast", "Android podcast", "app development podcast"}},
+	{"Open Source", []string{"open source podcast", "github podcast", "developer podcast"}},
+	{"DevOps", []string{"devops podcast", "cloud computing podcast", "SRE podcast", "infrastructure podcast"}},
+	{"UX Design", []string{"best UX podcast", "UX design podcast", "product design podcast", "design podcast"}},
+
+	// ─── LIFESTYLE ───
+	{"Cooking", []string{"best cooking podcast", "food podcast", "recipe podcast", "chef podcast"}},
+	{"Crafts", []string{"crafts podcast", "DIY podcast", "making podcast", "handmade podcast"}},
+	{"Dating", []string{"best dating podcast", "relationship podcast", "love podcast", "dating advice podcast"}},
+	{"Fashion", []string{"best fashion podcast", "style podcast", "fashion industry podcast"}},
+	{"Gardening", []string{"gardening podcast", "plant podcast", "garden podcast"}},
+	{"Meditation", []string{"best meditation podcast", "mindfulness podcast", "guided meditation podcast"}},
+	{"Minimalism", []string{"minimalism podcast", "simple living podcast", "intentional living podcast"}},
+	{"Nature", []string{"nature podcast", "wildlife podcast", "outdoors podcast", "animals podcast"}},
+	{"Nutrition", []string{"best nutrition podcast", "diet podcast", "healthy eating podcast"}},
+	{"Parenting", []string{"best parenting podcast", "mom podcast", "dad podcast", "raising kids podcast"}},
+	{"Pets", []string{"best pets podcast", "dog podcast", "cat podcast", "animal podcast"}},
+	{"Photography", []string{"photography podcast", "camera podcast", "photo podcast"}},
+	{"Productivity", []string{"best productivity podcast", "time management podcast", "habits podcast", "getting things done podcast"}},
+	{"Self Help", []string{"best self improvement podcast", "personal development podcast", "self help podcast", "motivation podcast"}},
+	{"Travel", []string{"best travel podcast", "travel tips podcast", "adventure podcast", "backpacking podcast"}},
+	{"Writing", []string{"best writing podcast", "author podcast", "creative writing podcast", "publishing podcast"}},
+
+	// ─── SPORTS ───
+	{"Basketball", []string{"best basketball podcast", "NBA podcast", "basketball analysis podcast"}},
+	{"Football", []string{"best football podcast", "NFL podcast", "fantasy football podcast"}},
+	{"Soccer", []string{"best soccer podcast", "football podcast premier league", "MLS podcast", "champions league podcast"}},
+	{"Baseball", []string{"best baseball podcast", "MLB podcast", "baseball analysis podcast"}},
+	{"Hockey", []string{"best hockey podcast", "NHL podcast", "hockey podcast"}},
+	{"Tennis", []string{"tennis podcast", "ATP podcast", "grand slam podcast"}},
+	{"Golf", []string{"best golf podcast", "PGA podcast", "golf tips podcast"}},
+	{"MMA", []string{"best MMA podcast", "UFC podcast", "martial arts podcast", "combat sports podcast"}},
+	{"Running", []string{"best running podcast", "marathon podcast", "trail running podcast"}},
+	{"Cycling", []string{"cycling podcast", "bike podcast", "tour de france podcast"}},
+	{"CrossFit", []string{"crossfit podcast", "functional fitness podcast"}},
+	{"Weightlifting", []string{"weightlifting podcast", "strength training podcast", "powerlifting podcast"}},
+	{"Yoga", []string{"yoga podcast", "yoga practice podcast"}},
+
+	// ─── MUSIC GENRES ───
+	{"DJing", []string{"DJ podcast", "DJing podcast", "electronic music podcast", "mixing podcast"}},
+	{"Electronic Music", []string{"best electronic music podcast", "EDM podcast", "techno podcast", "house music podcast"}},
+	{"Jazz", []string{"jazz podcast", "jazz music podcast", "jazz history podcast"}},
+	{"Classical Music", []string{"classical music podcast", "orchestra podcast", "opera podcast"}},
+	{"Hip Hop", []string{"best hip hop podcast", "rap podcast", "hip hop culture podcast"}},
+	{"Rock Music", []string{"rock podcast", "rock music podcast", "indie rock podcast", "alternative podcast"}},
+	{"Country Music", []string{"country music podcast", "country podcast", "americana podcast"}},
+	{"R&B", []string{"R&B podcast", "soul music podcast", "funk podcast"}},
+
+	// ─── NICHE / HOBBY ───
+	{"Gaming", []string{"best gaming podcast", "video game podcast", "game review podcast", "esports podcast"}},
+	{"Architecture", []string{"architecture podcast", "design podcast buildings", "urban design podcast"}},
+	{"Aviation", []string{"aviation podcast", "pilot podcast", "flying podcast", "aircraft podcast"}},
+	{"Cars", []string{"best car podcast", "automotive podcast", "car review podcast"}},
+	{"Chess", []string{"chess podcast", "chess strategy podcast"}},
+	{"Climate", []string{"best climate podcast", "climate change podcast", "environment podcast", "sustainability podcast"}},
+	{"Coffee", []string{"coffee podcast", "barista podcast", "coffee brewing podcast"}},
+	{"Documentary", []string{"documentary podcast", "investigative journalism podcast", "long form podcast"}},
+	{"Law", []string{"best law podcast", "legal podcast", "court podcast", "justice podcast"}},
+	{"Medicine", []string{"best medicine podcast", "medical podcast", "doctor podcast", "healthcare podcast"}},
+	{"Military", []string{"military podcast", "war podcast", "military history podcast", "veterans podcast"}},
+	{"Mythology", []string{"mythology podcast", "myths and legends podcast", "folklore podcast"}},
+	{"Stoicism", []string{"stoicism podcast", "stoic philosophy podcast", "marcus aurelius podcast", "daily stoic"}},
+	{"Theater", []string{"theater podcast", "broadway podcast", "acting podcast"}},
+	{"Visual Arts", []string{"art podcast", "art history podcast", "contemporary art podcast"}},
+	{"Wine", []string{"wine podcast", "wine tasting podcast", "sommelier podcast"}},
+	{"Beer", []string{"beer podcast", "craft beer podcast", "brewing podcast"}},
+	{"Camping", []string{"camping podcast", "outdoors podcast", "wilderness podcast", "survival podcast"}},
+	{"Fishing", []string{"fishing podcast", "fly fishing podcast", "angling podcast"}},
+	{"Hiking", []string{"hiking podcast", "backpacking podcast", "trails podcast"}},
+	{"Language Learning", []string{"best language learning podcast", "learn language podcast", "polyglot podcast"}},
+	{"Skepticism", []string{"skeptic podcast", "critical thinking podcast", "debunking podcast", "science vs podcast"}},
 }
 
 // ScrapePodcastShows searches Spotify for podcast shows by category queries
@@ -193,22 +193,30 @@ func ScrapePodcastShows(client spotify.Client, queries []string, maxPerQuery int
 			}
 			seenIDs[show.ID.String()] = true
 
+			// Skip shows with no images (usually garbage/test shows)
+			if len(show.Images) == 0 {
+				continue
+			}
+
+			// Skip shows with very short descriptions (low quality signal)
+			if len(show.Description) < 20 {
+				continue
+			}
+
 			podcastShow := PodcastShow{
-				ID:          show.ID.String(),
-				Name:        show.Name,
-				Publisher:   show.Publisher,
-				Description: stripHTML(show.Description),
-				Languages:   show.Languages,
+				ID:           show.ID.String(),
+				Name:         show.Name,
+				Publisher:    show.Publisher,
+				Description:  stripHTML(show.Description),
+				Languages:    show.Languages,
 				EpisodeCount: 0,
-				Explicit:    show.Explicit,
-				ExternalURL: show.ExternalURLs["spotify"],
-				MediaType:   show.MediaType,
+				Explicit:     show.Explicit,
+				ExternalURL:  show.ExternalURLs["spotify"],
+				MediaType:    show.MediaType,
 			}
 
 			// Get best image
-			if len(show.Images) > 0 {
-				podcastShow.ImageURL = show.Images[0].URL
-			}
+			podcastShow.ImageURL = show.Images[0].URL
 
 			allShows = append(allShows, podcastShow)
 			count++
@@ -222,7 +230,6 @@ func ScrapePodcastShows(client spotify.Client, queries []string, maxPerQuery int
 
 // stripHTML removes HTML tags from text
 func stripHTML(s string) string {
-	// Simple HTML stripping - remove anything between < and >
 	var result strings.Builder
 	inTag := false
 	for _, r := range s {

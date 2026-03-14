@@ -15,7 +15,8 @@ import (
 type PodcastScrapeRequest struct {
 	Category string   `json:"category"`           // Specific category to scrape (optional)
 	Queries  []string `json:"queries,omitempty"`  // Custom queries (optional)
-	MaxShows int      `json:"maxShows,omitempty"` // Max shows per query (default: 20)
+	MaxShows int      `json:"maxShows,omitempty"` // Max shows per query (default: 15)
+	Fresh    bool     `json:"fresh,omitempty"`    // If true, delete all existing shows first
 }
 
 // PodcastScrapeResponse represents the response
@@ -40,7 +41,32 @@ func (h *ScrapeHandler) HandlePodcasts(w http.ResponseWriter, r *http.Request) {
 
 	// Set defaults
 	if req.MaxShows == 0 {
-		req.MaxShows = 20
+		req.MaxShows = 15
+	}
+
+	// If fresh mode, nuke the collection first
+	if req.Fresh {
+		log.Println("Fresh mode: deleting all existing podcast_shows...")
+		iter := h.db.Collection("podcast_shows").Documents(ctx)
+		batch := h.db.Batch()
+		batchCount := 0
+		for {
+			doc, err := iter.Next()
+			if err != nil {
+				break
+			}
+			batch.Delete(doc.Ref)
+			batchCount++
+			if batchCount >= 500 {
+				_, _ = batch.Commit(ctx)
+				batch = h.db.Batch()
+				batchCount = 0
+			}
+		}
+		if batchCount > 0 {
+			_, _ = batch.Commit(ctx)
+		}
+		log.Printf("Deleted existing podcast_shows for fresh scrape")
 	}
 
 	// Determine which categories to scrape
