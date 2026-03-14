@@ -199,7 +199,7 @@ func ScrapePodcastShows(client spotify.Client, queries []string, maxPerQuery int
 				Publisher:   show.Publisher,
 				Description: stripHTML(show.Description),
 				Languages:   show.Languages,
-				EpisodeCount: int(show.TotalEpisodes),
+				EpisodeCount: 0,
 				Explicit:    show.Explicit,
 				ExternalURL: show.ExternalURLs["spotify"],
 				MediaType:   show.MediaType,
