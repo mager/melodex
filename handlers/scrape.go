@@ -3,9 +3,12 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 	"slices"
+	"strings"
+	"sync"
 
 	"cloud.google.com/go/firestore"
 
@@ -44,7 +47,7 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	// Parse request body
 	var req ScrapeHandlerReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		writeScrapeError(w, http.StatusBadRequest, "invalid request body")
 		log.Printf("Error decoding request body: %v", err)
 		return
 	}
@@ -52,45 +55,14 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	// Handle default case where no target is provided — run ALL scrapers concurrently
 	if target == "" {
-		errChan := make(chan error, 6)
-
-		go func() {
-			h.HandleBillboard(w, r)
-			errChan <- nil
-		}()
-
-		go func() {
-			h.HandleHotNewHipHop(w, r)
-			errChan <- nil
-		}()
-
-		go func() {
-			h.HandleSpotifyNewReleases(w, r)
-			errChan <- nil
-		}()
-
-		go func() {
-			h.HandleReddit(w, r)
-			errChan <- nil
-		}()
-
-		go func() {
-			h.HandlePitchfork(w, r)
-			errChan <- nil
-		}()
-
-		go func() {
-			h.HandlePodcasts(w, r)
-			errChan <- nil
-		}()
-
-		// Collect results from all goroutines
-		for i := 0; i < 6; i++ {
-			if err := <-errChan; err != nil {
-				log.Printf("Error in scraping: %v", err)
-			}
-		}
-		close(errChan)
+		runScrapeSources(w, r, []scrapeSource{
+			{"billboard-hot-100", h.HandleBillboard},
+			{"hot-new-hip-hop", h.HandleHotNewHipHop},
+			{"spotify-new-releases", h.HandleSpotifyNewReleases},
+			{"reddit-fresh", h.HandleReddit},
+			{"pitchfork-bnm", h.HandlePitchfork},
+			{"spotify-podcasts", h.HandlePodcasts},
+		})
 
 		// Run Firestore TTL cleanup after all scrapes complete
 		ctx := context.Background()
@@ -103,7 +75,6 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	// Valid targets
 	validTargets := []string{
-		"testing",
 		"billboard-hot-100",
 		"hot-new-hip-hop",
 		"spotify-new-releases",
@@ -113,15 +84,13 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !slices.Contains(validTargets, target) {
-		http.Error(w, "Invalid target", http.StatusBadRequest)
+		writeScrapeError(w, http.StatusBadRequest, "invalid target")
 		log.Printf("Invalid target: %s", target)
 		return
 	}
 
 	// Scrape based on target
 	switch target {
-	case "testing":
-		h.HandleTesting(w, r)
 	case "billboard-hot-100":
 		h.HandleBillboard(w, r)
 	case "hot-new-hip-hop":
@@ -137,4 +106,83 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	default:
 		log.Printf("Unhandled target: %s", target)
 	}
+}
+
+type scrapeSource struct {
+	name   string
+	handle http.HandlerFunc
+}
+
+// sourceResponse records only the status. Source payloads can be large, and
+// the scheduler needs a status summary rather than every scraped record.
+type sourceResponse struct {
+	header http.Header
+	status int
+}
+
+func (w *sourceResponse) Header() http.Header { return w.header }
+func (w *sourceResponse) WriteHeader(status int) {
+	if w.status == 0 {
+		w.status = status
+	}
+}
+func (w *sourceResponse) Write(data []byte) (int, error) {
+	w.WriteHeader(http.StatusOK)
+	return len(data), nil
+}
+
+type sourceResult struct {
+	Source  string `json:"source"`
+	Status  int    `json:"status"`
+	Outcome string `json:"outcome"`
+}
+
+func runScrapeSources(w http.ResponseWriter, r *http.Request, sources []scrapeSource) {
+	results := make([]sourceResult, len(sources))
+	var workers sync.WaitGroup
+	for index, source := range sources {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			response := &sourceResponse{header: make(http.Header)}
+			request := r.Clone(r.Context())
+			// The top-level decoder consumed the body. Each source gets its own
+			// default options, including the podcast handler that reads a JSON body.
+			request.Body = io.NopCloser(strings.NewReader("{}"))
+			request.ContentLength = 2
+			defer request.Body.Close()
+			source.handle(response, request)
+			if response.status == 0 {
+				response.status = http.StatusOK
+			}
+			outcome := "success"
+			if response.status == http.StatusConflict {
+				outcome = "skipped"
+			} else if response.status < 200 || response.status >= 300 {
+				outcome = "failed"
+			}
+			results[index] = sourceResult{Source: source.name, Status: response.status, Outcome: outcome}
+		}()
+	}
+	workers.Wait()
+	response := struct {
+		Results []sourceResult `json:"results"`
+		Error   string         `json:"error,omitempty"`
+	}{Results: results}
+	status := http.StatusOK
+	for _, result := range results {
+		if result.Outcome == "failed" {
+			status = http.StatusBadGateway
+			response.Error = "one or more sources failed"
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(response)
+}
+
+func writeScrapeError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
 }

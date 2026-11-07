@@ -9,7 +9,6 @@ The system consists of several components:
 - **Scrapers**: Collect track data from various music sources
 - **Enrichment Pipeline**: Uses Spotify and MusicBrainz APIs to add metadata (ISRC, MBID, thumbnails)
 - **Firestore Storage**: Stores enriched track data with TTL cleanup
-- **Scoring Algorithm**: Ranks tracks by discovery potential across sources
 - **REST API**: Provides endpoints for triggering scrapes and data access
 
 ## Music Sources
@@ -96,24 +95,9 @@ Podcast shows are stored in the `podcast_shows` collection:
 
 Note: Podcast shows are **not** TTL-cleared — they persist as a catalog for discovery.
 
-## Scoring Algorithm
+## Discovery ranking
 
-The scoring system ranks tracks by discovery potential using:
-
-```
-score = (source_weight × normalized_rank) + freshness_bonus + cross_source_bonus
-```
-
-### Components:
-
-- **Source Weight**: Higher weight sources contribute more to base score
-- **Normalized Rank**: Lower chart positions get higher scores (rank 1 = 1.0, rank 100 = 0.0)
-- **Freshness Bonus**: Recent tracks (<24h) get up to 0.2 bonus, decaying over a week
-- **Cross-Source Bonus**: Tracks appearing in multiple sources get up to 0.3 bonus
-
-### Deduplication:
-
-Tracks are deduplicated by normalized artist+title matching, keeping the version from the highest-weight source while preserving all metadata and combining source information.
+Melodex stores each source's rank and metadata. Occipital ranks and deduplicates the tracks when it serves discovery results. Melodex has no separate scoring package.
 
 ## Firestore Schema
 
@@ -263,11 +247,7 @@ To add a new music source:
    - Add case to switch statement
    - Add goroutine to default concurrent execution
 
-4. **Update scoring** in `scoring/scoring.go`:
-   - Add source weight to `getSourceWeight()` function
-   - Update documentation
-
-5. **Update cleanup** in `firestore/cleanup.go`:
+4. **Update cleanup** in `firestore/cleanup.go`:
    - Add new collection to `AllCollections()` function
 
 ## Development Notes
@@ -313,3 +293,14 @@ To add a new music source:
 ---
 
 Built with ❤️ for music discovery at BeatBrain.
+
+## Deployment notes: November 2026
+
+- Keep the scheduled `POST /scrape` request with `{"target":""}`. All six sources still run. Their stored rank fields and Firestore collection names are unchanged.
+- A full scrape now returns one JSON object with a `results` array. Each result has `source`, `status`, and `outcome` (`success`, `skipped`, or `failed`). HTTP 409 from a source means its daily data already exists and is reported as `skipped`.
+- The full request returns HTTP 200 when every source succeeds or is skipped. It returns HTTP 502 and the partial results when a source fails. This prevents an early source response from hiding another source's failure.
+- Each source has a separate response writer and request body. Large source response bodies are discarded from the summary. Direct single-source and podcast routes keep their existing response formats.
+- Removed the unused `/whosampled` endpoint, `testing` scrape target, browser automation dependency, and unused scoring package. No stored data is removed by these code changes.
+- Require Cloud Run IAM authentication for this ingestion service and configure the existing scheduler with an OIDC service account that has permission to invoke it. Do not expose scrape routes to the browser.
+- Existing seven-day discovery cleanup still runs after a full scrape. Podcast records are excluded. No cleanup is run by the tests.
+- Verify with `go test ./...`, `go test -race ./...`, and `go vet ./...`. Check the scheduler response and per-source statuses after deployment; upstream source failures are still possible.
