@@ -17,8 +17,7 @@ const maxTracksPerArtist = 2
 
 // ScrapeSpotifyNewReleases fetches new releases from Spotify API.
 // Limits to maxTracksPerArtist per artist to avoid album explosion.
-func ScrapeSpotifyNewReleases(w http.ResponseWriter, sp *spot.SpotifyClient) ([]fs.Track, error) {
-	ctx := context.Background()
+func ScrapeSpotifyNewReleases(ctx context.Context, w http.ResponseWriter, sp *spot.SpotifyClient) ([]fs.Track, error) {
 	var tracks []fs.Track
 	artistCount := make(map[string]int) // track count per artist
 
@@ -42,6 +41,9 @@ func ScrapeSpotifyNewReleases(w http.ResponseWriter, sp *spot.SpotifyClient) ([]
 		}
 
 		for _, track := range albumTracks.Tracks {
+			if len(track.Artists) == 0 || track.ID == "" {
+				continue
+			}
 			artistName := track.Artists[0].Name
 
 			// Skip if we already have enough tracks from this artist
@@ -98,4 +100,4 @@ func ScrapeSpotifyNewReleases(w http.ResponseWriter, sp *spot.SpotifyClient) ([]
 	return tracks, nil
 }
 
-type ScrapeSpotifyNewReleasesFunc func(http.ResponseWriter, *spot.SpotifyClient) ([]fs.Track, error)
+type ScrapeSpotifyNewReleasesFunc func(context.Context, http.ResponseWriter, *spot.SpotifyClient) ([]fs.Track, error)

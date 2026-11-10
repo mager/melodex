@@ -18,7 +18,8 @@ func AllCollections() []string {
 		"billboard",
 		"hnhh",
 		"spotify_new_releases",
-		"reddit_fresh",
+		"reddit_fresh", // Retire old cached Reddit data through the existing TTL.
+		"apple_music_charts",
 		"pitchfork_bnm",
 	}
 }

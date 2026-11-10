@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -12,7 +11,7 @@ import (
 )
 
 func (h *ScrapeHandler) HandleSpotifyNewReleases(w http.ResponseWriter, r *http.Request) {
-	ctx := context.Background()
+	ctx := r.Context()
 	debugMode := r.URL.Query().Get("debug") == "true"
 
 	today := time.Now().Format("2006-01-02")
@@ -35,7 +34,7 @@ func (h *ScrapeHandler) HandleSpotifyNewReleases(w http.ResponseWriter, r *http.
 
 	// Scrape Spotify new releases
 	log.Printf("Fetching Spotify new releases")
-	spotifyTracks, err := scrapers.ScrapeSpotifyNewReleases(w, h.sp)
+	spotifyTracks, err := scrapers.ScrapeSpotifyNewReleases(ctx, w, h.sp)
 	if err != nil {
 		http.Error(w, "Failed to fetch Spotify new releases: "+err.Error(), http.StatusInternalServerError)
 		log.Printf("Spotify new releases fetch failed: %v", err)
@@ -45,11 +44,7 @@ func (h *ScrapeHandler) HandleSpotifyNewReleases(w http.ResponseWriter, r *http.
 	tracks := make([]fs.Track, 0, len(spotifyTracks))
 	for _, track := range spotifyTracks {
 		// Since we already have Spotify data, we just need to find MBID
-		mbid := h.FindMBID(track.ISRC, track.Artist, track.Title)
-		if mbid == "" {
-			log.Printf("No MBID found for track: %s by %s", track.Title, track.Artist)
-			// Still add the track without MBID
-		}
+		// Detailed MusicBrainz lookup runs on the song page, not during ingestion.
 
 		newTrack := fs.Track{
 			Rank:      track.Rank,
@@ -57,7 +52,6 @@ func (h *ScrapeHandler) HandleSpotifyNewReleases(w http.ResponseWriter, r *http.
 			Title:     track.Title,
 			ISRC:      track.ISRC,
 			SpotifyID: track.SpotifyID,
-			MBID:      mbid,
 			Thumb:     track.Thumb,
 			Source:    "spotify_new_releases",
 			CreatedAt: time.Now(),
@@ -65,11 +59,7 @@ func (h *ScrapeHandler) HandleSpotifyNewReleases(w http.ResponseWriter, r *http.
 
 		tracks = append(tracks, newTrack)
 		log.Printf("Added Spotify new release: %s by %s", track.Title, track.Artist)
-		
-		// Rate limit MusicBrainz calls
-		if mbid != "" {
-			time.Sleep(3 * time.Second)
-		}
+
 	}
 
 	// Save today's data to Firestore

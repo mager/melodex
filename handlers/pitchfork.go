@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -15,7 +14,7 @@ import (
 )
 
 func (h *ScrapeHandler) HandlePitchfork(w http.ResponseWriter, r *http.Request) {
-	ctx := context.Background()
+	ctx := r.Context()
 	debugMode := r.URL.Query().Get("debug") == "true"
 
 	today := time.Now().Format("2006-01-02")
@@ -57,7 +56,7 @@ func (h *ScrapeHandler) HandlePitchfork(w http.ResponseWriter, r *http.Request) 
 	}
 
 	log.Printf("Scraping Pitchfork Best New Tracks")
-	songs, err := scrapers.ScrapePitchforkBestNewTracks(w)
+	songs, err := scrapers.ScrapePitchforkBestNewTracks(ctx, w)
 	if err != nil {
 		http.Error(w, "Failed to scrape Pitchfork: "+err.Error(), http.StatusInternalServerError)
 		log.Printf("Pitchfork scraping failed: %v", err)
@@ -95,10 +94,7 @@ func (h *ScrapeHandler) HandlePitchfork(w http.ResponseWriter, r *http.Request) 
 			continue
 		}
 
-		mbid := h.FindMBID(isrc, song.Artist, song.Title)
-		if mbid == "" {
-			log.Printf("No MBID found for Pitchfork track: %s by %s", song.Title, song.Artist)
-		}
+		// Detailed MusicBrainz lookup runs on the song page, not during ingestion.
 
 		newTrack := fs.Track{
 			Rank:      song.Rank,
@@ -106,7 +102,6 @@ func (h *ScrapeHandler) HandlePitchfork(w http.ResponseWriter, r *http.Request) 
 			Title:     song.Title,
 			ISRC:      isrc,
 			SpotifyID: track.ID.String(),
-			MBID:      mbid,
 			Source:    "pitchfork_bnm",
 			CreatedAt: time.Now(),
 		}
@@ -120,7 +115,6 @@ func (h *ScrapeHandler) HandlePitchfork(w http.ResponseWriter, r *http.Request) 
 
 		tracks = append(tracks, newTrack)
 		log.Printf("Added Pitchfork track: %s by %s", track.Name, track.Artists[0].Name)
-		time.Sleep(3 * time.Second) // Rate limit
 	}
 
 	// Save today's data to Firestore

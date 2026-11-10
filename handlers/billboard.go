@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -15,7 +14,7 @@ import (
 )
 
 func (h *ScrapeHandler) HandleBillboard(w http.ResponseWriter, r *http.Request) {
-	ctx := context.Background()
+	ctx := r.Context()
 	debugMode := r.URL.Query().Get("debug") == "true"
 
 	today := time.Now().Format("2006-01-02")
@@ -94,12 +93,7 @@ func (h *ScrapeHandler) HandleBillboard(w http.ResponseWriter, r *http.Request) 
 			continue
 		}
 
-		// Find MBID using the helper function
-		mbid := h.FindMBID(isrc, song.Artist, song.Title)
-		if mbid == "" {
-			log.Printf("Skipping track '%s' by '%s' - no MusicBrainz ID found", song.Title, song.Artist)
-			continue
-		}
+		// Detailed MusicBrainz lookup runs on the song page, not during ingestion.
 
 		newTrack := fs.Track{
 			Rank:      song.Rank,
@@ -107,7 +101,6 @@ func (h *ScrapeHandler) HandleBillboard(w http.ResponseWriter, r *http.Request) 
 			Title:     song.Title,
 			ISRC:      isrc,
 			SpotifyID: track.ID.String(),
-			MBID:      mbid,
 			Source:    "billboard",
 			CreatedAt: time.Now(),
 		}
@@ -122,7 +115,6 @@ func (h *ScrapeHandler) HandleBillboard(w http.ResponseWriter, r *http.Request) 
 
 		tracks = append(tracks, newTrack)
 		log.Printf("Added new track: %s by %s", track.Name, track.Artists[0].Name)
-		time.Sleep(3 * time.Second) // Rate limit
 	}
 
 	// Save today's data to Firestore

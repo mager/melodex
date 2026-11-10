@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"cloud.google.com/go/firestore"
 
@@ -54,18 +55,22 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	target := req.Target
 
 	// Handle default case where no target is provided — run ALL scrapers concurrently
-	if target == "" {
-		runScrapeSources(w, r, []scrapeSource{
+	if target == "" || target == "music" {
+		sources := []scrapeSource{
 			{"billboard-hot-100", h.HandleBillboard},
 			{"hot-new-hip-hop", h.HandleHotNewHipHop},
 			{"spotify-new-releases", h.HandleSpotifyNewReleases},
-			{"reddit-fresh", h.HandleReddit},
+			{"apple-music-charts", h.HandleAppleCharts},
 			{"pitchfork-bnm", h.HandlePitchfork},
-			{"spotify-podcasts", h.HandlePodcasts},
-		})
+		}
+		if target == "" {
+			sources = append(sources, scrapeSource{"spotify-podcasts", h.HandlePodcasts})
+		}
+		runScrapeSources(w, r, sources)
 
 		// Run Firestore TTL cleanup after all scrapes complete
-		ctx := context.Background()
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
 		if err := fs.RunCleanup(ctx, h.db); err != nil {
 			log.Printf("Error during TTL cleanup: %v", err)
 		}
@@ -78,7 +83,7 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		"billboard-hot-100",
 		"hot-new-hip-hop",
 		"spotify-new-releases",
-		"reddit-fresh",
+		"apple-music-charts",
 		"pitchfork-bnm",
 		"spotify-podcasts",
 	}
@@ -97,8 +102,8 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		h.HandleHotNewHipHop(w, r)
 	case "spotify-new-releases":
 		h.HandleSpotifyNewReleases(w, r)
-	case "reddit-fresh":
-		h.HandleReddit(w, r)
+	case "apple-music-charts":
+		h.HandleAppleCharts(w, r)
 	case "pitchfork-bnm":
 		h.HandlePitchfork(w, r)
 	case "spotify-podcasts":

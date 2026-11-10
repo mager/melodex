@@ -1,13 +1,13 @@
 # Melodex v2 - Music & Podcast Discovery Scraper
 
-Melodex is a comprehensive discovery service that scrapes multiple music sources and podcast shows, enriches tracks via Spotify and MusicBrainz APIs, and stores them in Firestore for consumption by the BeatBrain discovery frontend.
+Melodex is a comprehensive discovery service that scrapes multiple music sources and podcast shows, matches tracks via Spotify, and stores them in Firestore for consumption by the BeatBrain discovery frontend.
 
 ## Architecture Overview
 
 The system consists of several components:
 
 - **Scrapers**: Collect track data from various music sources
-- **Enrichment Pipeline**: Uses Spotify and MusicBrainz APIs to add metadata (ISRC, MBID, thumbnails)
+- **Enrichment Pipeline**: Uses Spotify to add ISRCs and artwork. Occipital loads detailed MusicBrainz and sourced credits when a song page opens.
 - **Firestore Storage**: Stores enriched track data with TTL cleanup
 - **REST API**: Provides endpoints for triggering scrapes and data access
 
@@ -16,7 +16,7 @@ The system consists of several components:
 | Source | Description | Weight | Collection |
 |--------|-------------|---------|------------|
 | **Spotify New Releases** | Latest album releases via Spotify API | 1.0 | `spotify_new_releases` |
-| **Reddit Fresh** | [FRESH] posts from r/listentothis and r/hiphopheads | 0.9 | `reddit_fresh` |
+| **Apple Music US Top 50** | Public [most-played song feed](https://rss.marketingtools.apple.com/api/v2/us/music/most-played/50/songs.json), exact title/artist matching | 0.9 | `apple_music_charts` |
 | **Hot New Hip Hop** | HNHH Top 100 chart scrape | 0.7 | `hnhh` |
 | **Pitchfork Best New Music** | Pitchfork Best New Tracks page | 0.6 | `pitchfork_bnm` |
 | **Billboard Hot 100** | Billboard Hot 100 chart scrape | 0.5 | `billboard` |
@@ -108,8 +108,8 @@ Each collection stores daily documents with date keys (YYYY-MM-DD):
 ```
 melodex/
 ├── billboard/2024-02-04
-├── spotify_new_releases/2024-02-04  
-├── reddit_fresh/2024-02-04
+├── spotify_new_releases/2024-02-04
+├── apple_music_charts/2026-11-09
 ├── pitchfork_bnm/2024-02-04
 └── hnhh/2024-02-04
 ```
@@ -121,7 +121,7 @@ melodex/
   "tracks": [
     {
       "artist": "Artist Name",
-      "title": "Track Title", 
+      "title": "Track Title",
       "rank": 1,
       "mbid": "musicbrainz-recording-id",
       "isrc": "ISRC-CODE",
@@ -155,8 +155,8 @@ Triggers scraping for specific sources or all sources.
 
 **Valid Targets:**
 - `billboard-hot-100`
-- `spotify-new-releases` 
-- `reddit-fresh`
+- `spotify-new-releases`
+- `apple-music-charts`
 - `pitchfork-bnm`
 - `hot-new-hip-hop`
 - `spotify-podcasts` - Podcast show discovery
@@ -223,10 +223,10 @@ curl -X POST http://localhost:8080/scrape?debug=true \
   -H "Content-Type: application/json" \
   -d '{"target": "spotify-new-releases"}'
 
-# Test Reddit fresh posts  
+# Test Apple Music US Top 50
 curl -X POST http://localhost:8080/scrape?debug=true \
   -H "Content-Type: application/json" \
-  -d '{"target": "reddit-fresh"}'
+  -d '{"target": "apple-music-charts"}'
 ```
 
 ## Adding New Sources
@@ -256,7 +256,7 @@ To add a new music source:
 
 - **MusicBrainz**: 3-second delay between requests (per their terms)
 - **Spotify**: Handled by client library with automatic retries
-- **Reddit**: Use proper User-Agent header to avoid blocking
+- **Apple Music**: Public US chart feed; exact title and artist matching before Spotify links.
 
 ### Error Handling
 
@@ -296,7 +296,7 @@ Built with ❤️ for music discovery at BeatBrain.
 
 ## Deployment notes: November 2026
 
-- Keep the scheduled `POST /scrape` request with `{"target":""}`. All six sources still run. Their stored rank fields and Firestore collection names are unchanged.
+- The scheduled `POST /scrape` request uses `{"target":"music"}`. The five music sources run; podcast ingestion remains an explicit separate request.
 - A full scrape now returns one JSON object with a `results` array. Each result has `source`, `status`, and `outcome` (`success`, `skipped`, or `failed`). HTTP 409 from a source means its daily data already exists and is reported as `skipped`.
 - The full request returns HTTP 200 when every source succeeds or is skipped. It returns HTTP 502 and the partial results when a source fails. This prevents an early source response from hiding another source's failure.
 - Each source has a separate response writer and request body. Large source response bodies are discarded from the summary. Direct single-source and podcast routes keep their existing response formats.
@@ -304,3 +304,7 @@ Built with ❤️ for music discovery at BeatBrain.
 - Require Cloud Run IAM authentication for this ingestion service and configure the existing scheduler with an OIDC service account that has permission to invoke it. Do not expose scrape routes to the browser.
 - Existing seven-day discovery cleanup still runs after a full scrape. Podcast records are excluded. No cleanup is run by the tests.
 - Verify with `go test ./...`, `go test -race ./...`, and `go vet ./...`. Check the scheduler response and per-source statuses after deployment; upstream source failures are still possible.
+
+## Daily music job
+
+Cloud Scheduler `update-discover-index` in `beatbrain-dev/us-central1` runs at `0 5 * * *` UTC. It posts `{"target":"music"}` to `/scrape`. Podcasts are separate from this schedule. Each source reports success, skipped (already saved today), or failed; failed sources do not replace good cached data. Reddit was removed because approved API access was unavailable.

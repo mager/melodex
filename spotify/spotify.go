@@ -2,7 +2,10 @@ package spotify
 
 import (
 	"context"
+	"golang.org/x/oauth2"
 	"log"
+	"net/http"
+	"time"
 
 	"melodex/config"
 
@@ -18,7 +21,7 @@ type SpotifyClient struct {
 }
 
 func ProvideSpotify(cfg config.Config) *SpotifyClient {
-	ctx := context.Background()
+	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, &http.Client{Timeout: 15 * time.Second})
 
 	var c SpotifyClient
 
@@ -30,12 +33,14 @@ func ProvideSpotify(cfg config.Config) *SpotifyClient {
 		ClientSecret: c.Secret,
 		TokenURL:     spotifyauth.TokenURL,
 	}
-	token, err := config.Token(ctx)
+	tokenSource := config.TokenSource(ctx)
+	_, err := tokenSource.Token()
 	if err != nil {
 		log.Fatalf("couldn't get token: %v", err)
 	}
 
-	httpClient := spotifyauth.New().Client(ctx, token)
+	httpClient := oauth2.NewClient(ctx, tokenSource)
+	httpClient.Timeout = 20 * time.Second
 	client := spotify.New(httpClient)
 	c.Client = client
 
