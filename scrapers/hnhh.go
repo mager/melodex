@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gocolly/colly"
 )
@@ -20,6 +21,7 @@ func ScrapeHotNewHipHop(w http.ResponseWriter) ([]fs.Track, error) {
 	// It's good practice to set a User-Agent
 	// colly.UserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.51 Safari/537.36"),
 	)
+	c.SetRequestTimeout(15 * time.Second)
 	var songs []fs.Track
 	var scrapingError error
 
@@ -98,7 +100,7 @@ func ScrapeHotNewHipHop(w http.ResponseWriter) ([]fs.Track, error) {
 	if len(songs) == 0 && scrapingError == nil {
 		log.Println("No songs were scraped. Check selectors and website structure.")
 		// Optionally return an error here if no songs being scraped is considered an error condition.
-		// return nil, fmt.Errorf("no songs scraped from HNHH")
+		return nil, fmt.Errorf("HNHH returned no readable songs")
 	}
 
 	return songs, nil

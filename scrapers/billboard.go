@@ -1,11 +1,13 @@
 package scrapers
 
 import (
+	"fmt"
 	"log"
 	"melodex/firestore"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gocolly/colly"
 )
@@ -13,6 +15,7 @@ import (
 // ScrapeBillboardHot100 scrapes the Billboard Hot 100 chart.
 func ScrapeBillboardHot100(w http.ResponseWriter) ([]firestore.Song, error) {
 	c := colly.NewCollector()
+	c.SetRequestTimeout(15 * time.Second)
 	var songs []firestore.Song
 
 	c.OnHTML("ul.o-chart-results-list-row", func(e *colly.HTMLElement) {
@@ -51,6 +54,9 @@ func ScrapeBillboardHot100(w http.ResponseWriter) ([]firestore.Song, error) {
 		return nil, err
 	}
 
+	if len(songs) == 0 {
+		return nil, fmt.Errorf("Billboard returned no readable songs")
+	}
 	log.Printf("Scraped %d songs from Billboard", len(songs))
 	return songs, nil
 }
