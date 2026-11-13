@@ -255,7 +255,7 @@ To add a new music source:
 ### Rate Limiting
 
 - **MusicBrainz**: 3-second delay between requests (per their terms)
-- **Spotify**: Handled by client library with automatic retries
+- **Spotify**: One shared queue, at most two requests per second, with a shared `Retry-After` cooldown and at most two GET retries. Requests cancel while queued.
 - **Apple Music**: Public US chart feed; exact title and artist matching before Spotify links.
 
 ### Error Handling
@@ -308,3 +308,12 @@ Built with ❤️ for music discovery at BeatBrain.
 ## Daily music job
 
 Cloud Scheduler `update-discover-index` in `beatbrain-dev/us-central1` runs at `0 5 * * *` UTC. It posts `{"target":"music"}` to `/scrape`. Podcasts are separate from this schedule. Each source reports success, skipped (already saved today), or failed; failed sources do not replace good cached data. Reddit was removed because approved API access was unavailable.
+
+## Discovery repair: November 13, 2026
+
+- Chart sources share one ingestion path. Only tracks with a valid Spotify ID and artwork are reused; missing matches are searched again on the next daily run. Reused tracks receive the current chart rank and retain their metadata timestamp.
+- Version 2 snapshots mean all provider requests completed. A provider failure aborts the source save, leaving the last good snapshot intact. A no-match response is not a provider failure. Old snapshots are refreshed once after this change.
+- `?refresh=true` refreshes a completed day without deleting the saved data. This remains an IAM-protected operator action. `?debug=true` skips database reads, saves, and source-health writes.
+- The five small `discovery_health` records hold each source's latest attempt. Both full and targeted runs record their outcomes. Structured logs include source, HTTP status, outcome, and time; matching logs include total, matched, and reused counts.
+- Cloud Run uses request-based billing, zero minimum instances, one maximum instance, and concurrency one for ingestion. The daily scheduler has two bounded retries with a 15-minute minimum backoff. Completed sources skip on a retry. No new cloud service or paid cache is needed.
+- Spotify pacing applies to this Melodex process. Spotify limits are shared at the app level, so other services can still cause a cooldown. Respect `Retry-After`; do not assume two requests per second is a provider quota guarantee.

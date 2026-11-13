@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"time"
 
-	fs "melodex/firestore"
 	"melodex/scrapers"
 )
 
@@ -14,19 +13,19 @@ func (h *ScrapeHandler) HandleSpotifyNewReleases(w http.ResponseWriter, r *http.
 	ctx := r.Context()
 	debugMode := r.URL.Query().Get("debug") == "true"
 
-	today := time.Now().Format("2006-01-02")
+	today := time.Now().UTC().Format("2006-01-02")
 	log.Printf("Checking if document for today (%s) exists in spotify_new_releases", today)
 
 	// Skip DB check in debug mode
 	if !debugMode {
-		// Check if today's document exists
-		doc, err := h.db.Collection("spotify_new_releases").Doc(today).Get(ctx)
-		if err == nil && doc.Exists() {
-			http.Error(w, "Data for today already exists", http.StatusConflict)
-			log.Printf("Data for today (%s) already exists in spotify_new_releases", today)
+		_, skip, err := h.musicCache(ctx, "spotify_new_releases", time.Now().UTC(), r.URL.Query().Get("refresh") == "true")
+		if err != nil {
+			writeScrapeError(w, 500, "source cache unavailable")
 			return
-		} else if err != nil {
-			log.Printf("Error checking today's document existence: %v", err)
+		}
+		if skip {
+			writeScrapeError(w, 409, "data for today already exists")
+			return
 		}
 	} else {
 		log.Printf("Debug mode: Skipping database existence check")
@@ -35,40 +34,22 @@ func (h *ScrapeHandler) HandleSpotifyNewReleases(w http.ResponseWriter, r *http.
 	// Scrape Spotify new releases
 	log.Printf("Fetching Spotify new releases")
 	spotifyTracks, err := scrapers.ScrapeSpotifyNewReleases(ctx, w, h.sp)
+	if err == nil {
+		err = requireTracks(spotifyTracks)
+	}
 	if err != nil {
-		http.Error(w, "Failed to fetch Spotify new releases: "+err.Error(), http.StatusInternalServerError)
+		writeScrapeError(w, 502, "new releases unavailable")
 		log.Printf("Spotify new releases fetch failed: %v", err)
 		return
 	}
 
-	tracks := make([]fs.Track, 0, len(spotifyTracks))
-	for _, track := range spotifyTracks {
-		// Since we already have Spotify data, we just need to find MBID
-		// Detailed MusicBrainz lookup runs on the song page, not during ingestion.
-
-		newTrack := fs.Track{
-			Rank:      track.Rank,
-			Artist:    track.Artist,
-			Title:     track.Title,
-			ISRC:      track.ISRC,
-			SpotifyID: track.SpotifyID,
-			Thumb:     track.Thumb,
-			Source:    "spotify_new_releases",
-			CreatedAt: time.Now(),
-		}
-
-		tracks = append(tracks, newTrack)
-		log.Printf("Added Spotify new release: %s by %s", track.Title, track.Artist)
-
-	}
+	tracks := spotifyTracks
 
 	// Save today's data to Firestore
 	if !debugMode {
-		_, err = h.db.Collection("spotify_new_releases").Doc(today).Set(ctx, map[string]interface{}{
-			"tracks": tracks,
-		})
+		err = h.store.save(ctx, "spotify_new_releases", today, tracks)
 		if err != nil {
-			http.Error(w, "Failed to update Firestore: "+err.Error(), http.StatusInternalServerError)
+			writeScrapeError(w, 500, "source save failed")
 			log.Printf("Failed to update Firestore: %v", err)
 			return
 		}

@@ -19,9 +19,10 @@ import (
 )
 
 type ScrapeHandler struct {
-	db *firestore.Client
-	sp *spot.SpotifyClient
-	mb *mb.MusicbrainzClient
+	db    *firestore.Client
+	store musicStore
+	sp    *spot.SpotifyClient
+	mb    *mb.MusicbrainzClient
 }
 
 func NewScrapeHandler(
@@ -30,9 +31,10 @@ func NewScrapeHandler(
 	mb *mb.MusicbrainzClient,
 ) *ScrapeHandler {
 	return &ScrapeHandler{
-		db: db,
-		sp: sp,
-		mb: mb,
+		db:    db,
+		store: firestoreMusicStore{db},
+		sp:    sp,
+		mb:    mb,
 	}
 }
 
@@ -66,7 +68,8 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		if target == "" {
 			sources = append(sources, scrapeSource{"spotify-podcasts", h.HandlePodcasts})
 		}
-		runScrapeSources(w, r, sources)
+		results := runScrapeSources(w, r, sources)
+		h.recordSourceHealth(r, results)
 
 		// Run Firestore TTL cleanup after all scrapes complete
 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
@@ -94,6 +97,9 @@ func (h *ScrapeHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	recorder := &statusWriter{ResponseWriter: w}
+	defer func() { h.recordSourceHealth(r, []sourceResult{makeSourceResult(target, recorder.status)}) }()
+	w = recorder
 	// Scrape based on target
 	switch target {
 	case "billboard-hot-100":
@@ -142,7 +148,7 @@ type sourceResult struct {
 	Outcome string `json:"outcome"`
 }
 
-func runScrapeSources(w http.ResponseWriter, r *http.Request, sources []scrapeSource) {
+func runScrapeSources(w http.ResponseWriter, r *http.Request, sources []scrapeSource) []sourceResult {
 	results := make([]sourceResult, len(sources))
 	var workers sync.WaitGroup
 	for index, source := range sources {
@@ -160,13 +166,7 @@ func runScrapeSources(w http.ResponseWriter, r *http.Request, sources []scrapeSo
 			if response.status == 0 {
 				response.status = http.StatusOK
 			}
-			outcome := "success"
-			if response.status == http.StatusConflict {
-				outcome = "skipped"
-			} else if response.status < 200 || response.status >= 300 {
-				outcome = "failed"
-			}
-			results[index] = sourceResult{Source: source.name, Status: response.status, Outcome: outcome}
+			results[index] = makeSourceResult(source.name, response.status)
 		}()
 	}
 	workers.Wait()
@@ -184,10 +184,60 @@ func runScrapeSources(w http.ResponseWriter, r *http.Request, sources []scrapeSo
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(response)
+	return results
 }
 
 func writeScrapeError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
+}
+
+// Five small records retain the latest daily attempt without an event table.
+func (h *ScrapeHandler) recordSourceHealth(r *http.Request, results []sourceResult) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
+	defer cancel()
+	collections := map[string]string{"billboard-hot-100": "billboard", "hot-new-hip-hop": "hnhh", "spotify-new-releases": "spotify_new_releases", "apple-music-charts": "apple_music_charts", "pitchfork-bnm": "pitchfork_bnm"}
+	for _, result := range results {
+		data := map[string]interface{}{"source": result.Source, "status": result.Status, "outcome": result.Outcome, "checkedAt": time.Now().UTC()}
+		encoded, _ := json.Marshal(data)
+		log.Print(string(encoded))
+		collection := collections[result.Source]
+		if h.db == nil || collection == "" || r.URL.Query().Get("debug") == "true" {
+			continue
+		}
+		if _, err := h.db.Collection("discovery_health").Doc(collection).Set(ctx, data); err != nil {
+			log.Printf("source=%s stage=health error=%v", collection, err)
+		}
+	}
+}
+
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *statusWriter) WriteHeader(status int) {
+	if w.status == 0 {
+		w.status = status
+		w.ResponseWriter.WriteHeader(status)
+	}
+}
+func (w *statusWriter) Write(data []byte) (int, error) {
+	if w.status == 0 {
+		w.WriteHeader(http.StatusOK)
+	}
+	return w.ResponseWriter.Write(data)
+}
+func makeSourceResult(source string, status int) sourceResult {
+	if status == 0 {
+		status = http.StatusOK
+	}
+	outcome := "success"
+	if status == http.StatusConflict {
+		outcome = "skipped"
+	} else if status < 200 || status >= 300 {
+		outcome = "failed"
+	}
+	return sourceResult{Source: source, Status: status, Outcome: outcome}
 }

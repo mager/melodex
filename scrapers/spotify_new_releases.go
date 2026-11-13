@@ -2,6 +2,7 @@ package scrapers
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -25,9 +26,6 @@ func ScrapeSpotifyNewReleases(ctx context.Context, w http.ResponseWriter, sp *sp
 	newReleases, err := sp.Client.NewReleases(ctx, spotify.Limit(50))
 	if err != nil {
 		log.Printf("Error getting new releases from Spotify: %v", err)
-		if w != nil {
-			http.Error(w, "Error getting new releases from Spotify", http.StatusInternalServerError)
-		}
 		return nil, err
 	}
 
@@ -37,7 +35,7 @@ func ScrapeSpotifyNewReleases(ctx context.Context, w http.ResponseWriter, sp *sp
 		albumTracks, err := sp.Client.GetAlbumTracks(ctx, album.ID, spotify.Limit(50))
 		if err != nil {
 			log.Printf("Error getting tracks for album %s: %v", album.Name, err)
-			continue
+			return nil, fmt.Errorf("album tracks unavailable: %w", err)
 		}
 
 		for _, track := range albumTracks.Tracks {
@@ -55,7 +53,7 @@ func ScrapeSpotifyNewReleases(ctx context.Context, w http.ResponseWriter, sp *sp
 			fullTrack, err := sp.Client.GetTrack(ctx, track.ID)
 			if err != nil {
 				log.Printf("Error getting full track info for %s: %v", track.Name, err)
-				continue
+				return nil, fmt.Errorf("track metadata unavailable: %w", err)
 			}
 
 			isrc := fullTrack.ExternalIDs["isrc"]

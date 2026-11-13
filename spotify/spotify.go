@@ -21,7 +21,13 @@ type SpotifyClient struct {
 }
 
 func ProvideSpotify(cfg config.Config) *SpotifyClient {
-	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, &http.Client{Timeout: 15 * time.Second})
+	base := http.DefaultTransport
+	if transport, ok := base.(*http.Transport); ok {
+		bounded := transport.Clone()
+		bounded.ResponseHeaderTimeout = 20 * time.Second
+		base = bounded
+	}
+	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, &http.Client{Timeout: 15 * time.Second, Transport: base})
 
 	var c SpotifyClient
 
@@ -40,8 +46,11 @@ func ProvideSpotify(cfg config.Config) *SpotifyClient {
 	}
 
 	httpClient := oauth2.NewClient(ctx, tokenSource)
-	httpClient.Timeout = 20 * time.Second
-	client := spotify.New(httpClient)
+	// Queue time and provider cooldowns are included in this bound. The
+	// underlying transport still bounds each network request separately.
+	httpClient.Transport = newPacedTransport(httpClient.Transport, 500*time.Millisecond)
+	httpClient.Timeout = 90 * time.Second
+	client := spotify.New(httpClient, spotify.WithRetry(false))
 	c.Client = client
 
 	return &c
