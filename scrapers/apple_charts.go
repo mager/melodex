@@ -3,10 +3,12 @@ package scrapers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	fs "melodex/firestore"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -51,6 +53,12 @@ func fetchAppleChart(ctx context.Context, client *http.Client) ([]fs.Song, error
 		if resp.StatusCode == http.StatusOK {
 			songs, parseErr := parseAppleChart(io.LimitReader(resp.Body, 1024*1024))
 			resp.Body.Close()
+			var networkErr net.Error
+			if errors.Is(parseErr, io.ErrUnexpectedEOF) || errors.As(parseErr, &networkErr) {
+				lastErr = parseErr
+				log.Printf("Apple chart attempt=%d body interrupted: %v", attempt+1, parseErr)
+				continue
+			}
 			return songs, parseErr
 		}
 		resp.Body.Close()

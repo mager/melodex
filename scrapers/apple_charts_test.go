@@ -66,3 +66,23 @@ func TestAppleChartDoesNotRetryPermanentFailure(t *testing.T) {
 		t.Fatal("permanent failure retried")
 	}
 }
+
+type interruptedAppleBody struct{}
+
+func (interruptedAppleBody) Read([]byte) (int, error) { return 0, io.ErrUnexpectedEOF }
+func (interruptedAppleBody) Close() error             { return nil }
+func TestAppleChartRetriesInterruptedBody(t *testing.T) {
+	calls := 0
+	client := &http.Client{Transport: appleTransport(func(r *http.Request) (*http.Response, error) {
+		calls++
+		var body io.ReadCloser = interruptedAppleBody{}
+		if calls > 1 {
+			body = io.NopCloser(strings.NewReader(`{"feed":{"results":[{"id":"1","name":"A song","artistName":"An artist","kind":"songs"}]}}`))
+		}
+		return &http.Response{StatusCode: 200, Header: http.Header{}, Body: body}, nil
+	})}
+	songs, err := fetchAppleChart(context.Background(), client)
+	if err != nil || len(songs) != 1 || calls != 2 {
+		t.Fatalf("interrupted body did not recover: calls=%d err=%v", calls, err)
+	}
+}
