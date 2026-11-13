@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	fs "melodex/firestore"
 	"net/http"
 	"strings"
@@ -14,20 +15,54 @@ import (
 const AppleChartURL = "https://rss.marketingtools.apple.com/api/v2/us/music/most-played/50/songs.json"
 
 func FetchAppleChart(ctx context.Context) ([]fs.Song, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, AppleChartURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := (&http.Client{Timeout: 15 * time.Second}).Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("Apple chart status %d", resp.StatusCode)
-	}
-	return parseAppleChart(io.LimitReader(resp.Body, 1024*1024))
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	// Apple intermittently accepts a connection but never sends headers. A retry
+	// must make a new connection rather than reuse an unhealthy edge connection.
+	transport.DisableKeepAlives = true
+	defer transport.CloseIdleConnections()
+	return fetchAppleChart(ctx, &http.Client{Timeout: 15 * time.Second, Transport: transport})
 }
+
+func fetchAppleChart(ctx context.Context, client *http.Client) ([]fs.Song, error) {
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if attempt > 0 {
+			timer := time.NewTimer(time.Duration(attempt) * time.Second)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return nil, ctx.Err()
+			case <-timer.C:
+			}
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, AppleChartURL, nil)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			lastErr = err
+			log.Printf("Apple chart attempt=%d failed: %v", attempt+1, err)
+			continue
+		}
+		if resp.StatusCode == http.StatusOK {
+			songs, parseErr := parseAppleChart(io.LimitReader(resp.Body, 1024*1024))
+			resp.Body.Close()
+			return songs, parseErr
+		}
+		resp.Body.Close()
+		lastErr = fmt.Errorf("Apple chart status %d", resp.StatusCode)
+		if resp.StatusCode < 500 {
+			return nil, lastErr
+		}
+		log.Printf("Apple chart attempt=%d failed: %v", attempt+1, lastErr)
+	}
+	return nil, lastErr
+}
+
 func parseAppleChart(reader io.Reader) ([]fs.Song, error) {
 	var payload struct {
 		Feed struct {

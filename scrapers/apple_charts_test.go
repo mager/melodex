@@ -1,6 +1,9 @@
 package scrapers
 
 import (
+	"context"
+	"io"
+	"net/http"
 	"strings"
 	"testing"
 )
@@ -14,5 +17,52 @@ func TestAppleChartFeed(t *testing.T) {
 		if _, err := parseAppleChart(strings.NewReader(body)); err == nil {
 			t.Fatal("invalid feed accepted")
 		}
+	}
+}
+
+type appleTransport func(*http.Request) (*http.Response, error)
+
+func (f appleTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestAppleChartRetriesTransientFailures(t *testing.T) {
+	calls := 0
+	client := &http.Client{Transport: appleTransport(func(r *http.Request) (*http.Response, error) {
+		calls++
+		if calls == 1 {
+			return nil, context.DeadlineExceeded
+		}
+		status := 200
+		body := `{"feed":{"results":[{"id":"1","name":"A song","artistName":"An artist","kind":"songs"}]}}`
+		if calls == 2 {
+			status = 503
+			body = "unavailable"
+		}
+		return &http.Response{StatusCode: status, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(body))}, nil
+	})}
+	songs, err := fetchAppleChart(context.Background(), client)
+	if err != nil || len(songs) != 1 || songs[0].Title != "A song" || calls != 3 {
+		t.Fatalf("retry failed: songs=%v calls=%d err=%v", songs, calls, err)
+	}
+}
+func TestAppleChartRetriesAreBoundedAndCancel(t *testing.T) {
+	calls := 0
+	client := &http.Client{Transport: appleTransport(func(r *http.Request) (*http.Response, error) { calls++; return nil, context.DeadlineExceeded })}
+	if _, err := fetchAppleChart(context.Background(), client); err == nil || calls != 3 {
+		t.Fatalf("retry budget not bounded: calls=%d err=%v", calls, err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := fetchAppleChart(ctx, client); err == nil || calls != 3 {
+		t.Fatal("canceled request reached provider")
+	}
+}
+func TestAppleChartDoesNotRetryPermanentFailure(t *testing.T) {
+	calls := 0
+	client := &http.Client{Transport: appleTransport(func(r *http.Request) (*http.Response, error) {
+		calls++
+		return &http.Response{StatusCode: 404, Header: http.Header{}, Body: io.NopCloser(strings.NewReader("missing"))}, nil
+	})}
+	if _, err := fetchAppleChart(context.Background(), client); err == nil || calls != 1 {
+		t.Fatal("permanent failure retried")
 	}
 }
